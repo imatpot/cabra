@@ -1,0 +1,35 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check for commits in the last 24 hours
+        id: check
+        run: |
+          if git log --oneline --after="24 hours ago" | grep -q .; then
+            echo "has_commits=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_commits=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push nightly image
+        if: steps.check.outputs.has_commits == 'true'
+        uses: ./.github/actions/docker-publish
+        with:
+          tags: ghcr.io/${{ github.repository }}:nightly
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
