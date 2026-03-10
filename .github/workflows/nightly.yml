@@ -30,7 +30,7 @@ jobs:
 
       - name: Build and push nightly image
         if: steps.check.outputs.has_commits == 'true'
-        uses: ./.github/actions/docker-publish
+        uses: ./.github/actions/publish-container
         with:
           tags: ghcr.io/${{ github.repository }}:nightly
           registry-password: ${{ secrets.GITHUB_TOKEN }}
