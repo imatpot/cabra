@@ -9,9 +9,9 @@ Cabra (Spanish for goat) is an AI player for the board game [Caminos][caminos]
 [copy of the game's instructions I received][bridget-rules], where valid bridges
 are described with 'a goat taking a stroll'.
 
-Cabra uses Monte Carlo Tree Search (MCTS) to determine its moves, and is
-designed to be a strong opponent for human players. It is still a work in
-progress.
+Cabra uses [Monte Carlo Tree Search][mcts] (MCTS, see also the
+[beginner's guide][mcts-beginner]) to determine its moves, and is designed to be
+a strong opponent for human players. It is still a work in progress.
 
 ## Getting Started
 
@@ -95,6 +95,8 @@ the [rules of Bridget][bridget-rules], but the core mechanics are the same.
 [bridget]: https://boardgamegeek.com/boardgame/286904/bridget
 [bridget-rules]: https://jpneto.github.io/world_abstract_games/modern_rules/2013_Bridget.pdf
 [koegl]: https://boardgamegeek.com/boardgamedesigner/2286/stefan-kogl
+[mcts]: https://ieeexplore.ieee.org/document/6145622
+[mcts-beginner]: https://int8.io/monte-carlo-tree-search-beginners-guide/
 [cargo]: https://doc.rust-lang.org/cargo/
 [nix]: https://nix.dev/manual/nix/stable/introduction.html
 [ghcr]: https://github.com/imatpot/cabra/pkgs/container/cabra
