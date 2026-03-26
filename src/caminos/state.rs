@@ -1,6 +1,6 @@
-use rand::Rng;
+use rand::{Rng, seq::IndexedRandom};
 
-use crate::caminos::{board::BitBoard, piece::Piece};
+use crate::caminos::{board::BitBoard, piece::Piece, placement::Placement};
 
 /// Game state of a single Caminos player.
 pub struct PlayerState {
@@ -34,37 +34,46 @@ impl PlayerState {
 		o_remaining: 2,
 	};
 
-	/// Returns a random piece that this player can still place.
+	/// Returns a random piece that this player can still place and decrements
+	/// the count of that piece type.
 	/// If the player has no pieces left, returns `None`.
-	pub fn random_piece(&self, rng: &mut impl Rng) -> Option<Piece> {
-		Piece::random_of(
-			rng,
-			&[
-				if self.l_remaining > 0 {
-					Some(Piece::L)
-				} else {
-					None
-				},
-				if self.t_remaining > 0 {
-					Some(Piece::T)
-				} else {
-					None
-				},
-				if self.z_remaining > 0 {
-					Some(Piece::Z)
-				} else {
-					None
-				},
-				if self.o_remaining > 0 {
-					Some(Piece::O)
-				} else {
-					None
-				},
-			]
-			.into_iter()
-			.flatten()
-			.collect::<Vec<_>>(),
-		)
+	pub fn random_piece(&mut self, rng: &mut impl Rng) -> Option<Piece> {
+		let piece = [
+			if self.l_remaining > 0 {
+				Some(Piece::L)
+			} else {
+				None
+			},
+			if self.t_remaining > 0 {
+				Some(Piece::T)
+			} else {
+				None
+			},
+			if self.z_remaining > 0 {
+				Some(Piece::Z)
+			} else {
+				None
+			},
+			if self.o_remaining > 0 {
+				Some(Piece::O)
+			} else {
+				None
+			},
+		]
+		.choose(rng)
+		.copied()
+		.flatten();
+
+		if let Some(piece) = piece {
+			match piece {
+				Piece::L => self.l_remaining -= 1,
+				Piece::T => self.t_remaining -= 1,
+				Piece::Z => self.z_remaining -= 1,
+				Piece::O => self.o_remaining -= 1,
+			}
+		}
+
+		piece
 	}
 }
 
@@ -75,6 +84,9 @@ pub struct GameState {
 
 	/// The index of the current player (0 or 1).
 	pub current_player: u8,
+
+	/// The ordered sequence of placements made in the game.
+	pub moves: Vec<Placement>,
 }
 
 impl GameState {
@@ -82,6 +94,7 @@ impl GameState {
 	pub const EMPTY: Self = Self {
 		players: [PlayerState::EMPTY, PlayerState::EMPTY],
 		current_player: 0,
+		moves: Vec::new(),
 	};
 
 	/// Swaps the current player, changing the turn to the other player.
