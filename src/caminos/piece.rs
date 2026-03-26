@@ -1,7 +1,5 @@
-use rand::{Rng, RngExt};
-
 /// A Caminos piece independent of its position and orientation on the board.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Piece {
 	L,
 	T,
@@ -10,25 +8,15 @@ pub enum Piece {
 }
 
 impl Piece {
-	/// Returns a random piece.
-	pub fn random(rng: &mut impl Rng) -> Self {
-		match rng.random_range(0..4) {
-			0 => Self::L,
-			1 => Self::T,
-			2 => Self::Z,
-			3 => Self::O,
-			_ => unreachable!(),
+	/// Returns the canonical position of the piece in its default
+	/// orientation and location, `T0 000`.
+	pub fn canonical_position(&self) -> [(u8, u8, u8); 4] {
+		match self {
+			Piece::L => [(0, 0, 0), (1, 0, 0), (2, 0, 0), (0, 1, 0)],
+			Piece::T => [(0, 0, 0), (1, 0, 0), (2, 0, 0), (1, 1, 0)],
+			Piece::Z => [(0, 0, 0), (1, 0, 0), (1, 1, 0), (2, 1, 0)],
+			Piece::O => [(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)],
 		}
-	}
-
-	/// Returns a random piece from the given slice of pieces.
-	pub fn random_of(rng: &mut impl Rng, pieces: &[Piece]) -> Option<Self> {
-		if pieces.is_empty() {
-			return None;
-		}
-
-		let i = rng.random_range(0..pieces.len());
-		Some(pieces[i])
 	}
 
 	/// Returns the unique rotations for this piece.
@@ -115,7 +103,7 @@ impl Piece {
 /// South is the face that is facing into positive Y,
 /// East is the face that is facing into positive X,
 /// West is the face that is facing into negative X.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Rotation {
 	T0,
 	T90,
@@ -141,4 +129,46 @@ pub enum Rotation {
 	W90,
 	W180,
 	W270,
+}
+
+impl std::fmt::Display for Piece {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Piece::L => write!(f, "L"),
+			Piece::T => write!(f, "T"),
+			Piece::Z => write!(f, "Z"),
+			Piece::O => write!(f, "O"),
+		}
+	}
+}
+
+impl std::fmt::Display for Rotation {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Rotation::T0 => write!(f, "T0"),
+			Rotation::T90 => write!(f, "T90"),
+			Rotation::T180 => write!(f, "T180"),
+			Rotation::T270 => write!(f, "T270"),
+			Rotation::B0 => write!(f, "B0"),
+			Rotation::B90 => write!(f, "B90"),
+			Rotation::B180 => write!(f, "B180"),
+			Rotation::B270 => write!(f, "B270"),
+			Rotation::N0 => write!(f, "N0"),
+			Rotation::N90 => write!(f, "N90"),
+			Rotation::N180 => write!(f, "N180"),
+			Rotation::N270 => write!(f, "N270"),
+			Rotation::S0 => write!(f, "S0"),
+			Rotation::S90 => write!(f, "S90"),
+			Rotation::S180 => write!(f, "S180"),
+			Rotation::S270 => write!(f, "S270"),
+			Rotation::E0 => write!(f, "E0"),
+			Rotation::E90 => write!(f, "E90"),
+			Rotation::E180 => write!(f, "E180"),
+			Rotation::E270 => write!(f, "E270"),
+			Rotation::W0 => write!(f, "W0"),
+			Rotation::W90 => write!(f, "W90"),
+			Rotation::W180 => write!(f, "W180"),
+			Rotation::W270 => write!(f, "W27₀"),
+		}
+	}
 }
