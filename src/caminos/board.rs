@@ -12,6 +12,12 @@
 /// Layer 0 maps to the bottom-most layer,
 /// layer 1 maps to the middle layer, and
 /// layer 2 maps to the top-most layer.
+/// 
+/// A coordinate like (2, 6, 1) in (x, y, z) format would, by this convention,
+/// refer to the cell
+/// in the 3rd column
+/// on the 7th row
+/// on the 2nd layer.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BitBoard([u64; 3]);
 
