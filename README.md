@@ -76,6 +76,99 @@ podman run --rm ghcr.io/imatpot/cabra:latest --help
 
 as you would with any other container.
 
+## Piece Notation
+
+In order to describe the pieces and their orientations, a notation system has
+been defined. Each piece is represented as rotation of a canonical orientation,
+and the position of the piece on the board.
+
+### Canonical Rotations
+
+For each of the four piece types — L, T, Z, and O — a canonical rotation has
+been defined. This servers as the reference point for all other orientations of
+that piece. The canonical rotations for each piece are defined as follows:
+
+```
+  L        T        Z        O
+
+█ █ █    █ █ █    █ █       █ █
+█          █        █ █     █ █
+```
+
+These canonical orientations are defined with the pieces "lying flat" on the X-Y
+plane, with the origin (0, 0, 0) in the top left corner. As such, X denotes the
+horizontal axis, Y the vertical axis, and Z the depth (or in this case, height)
+axis.
+
+### Rotation and Position Notation
+
+To describe the orientation of a piece, we use a notation system that combines
+the piece type, the rotation, and the position on the board. The notation is
+as follows:
+
+```
+<Piece Type> <Rotation> <Position>
+```
+
+#### Piece Type
+
+The piece type is denoted by a single letter: `L`, `T`, `Z`, or `O`.
+
+#### Rotation
+
+The rotation is described by a direction in 3D space (X, Y, or Z) and a number
+indicating the number of clockwise 90-degree rotations in that direction. The
+directions correspond to the 6 faces of a cube and are denoted as follow:
+
+- Top (positive Z-axis): `T`
+- Bottom (negative Z-axis): `B`
+- North (negative Y-axis): `N`
+- South (positive Y-axis): `S`
+- East (negative X-axis): `E`
+- West (positive X-axis): `W`
+
+The canonical orientation of a piece is denoted by `T0`, indicating that it is
+facing the top face and has not been rotated. T, Z, and O have varying degrees
+of symmetry. For rotations with equivalent views, Top, North, and East are
+preferred.
+
+The full list of possible rotations per piece is as follows:
+
+- L (24):
+  - `T0`, `T90`, `T180`, `T270`;
+  - `B0`, `B90`, `B180`, `B270`;
+  - `N0`, `N90`, `N180`, `N270`;
+  - `S0`, `S90`, `S180`, `S270`;
+  - `E0`, `E90`, `E180`, `E270`;
+  - `W0`, `W90`, `W180`, `W270`.
+  - No symmetry.
+
+- T (12): <!-- T/B same, N/S same, E/W same -->
+  - `T0`, `T90`, `T180`, `T270`;
+  - `N0`, `N90`, `N180`, `N270`;
+  - `E0`, `E90`, `E180`, `E270`.
+  - Top/Bottom, North/South, and East/West are redundant.
+
+- Z (12): <!-- 0/180 same, 90/270 same -->
+  - `T0`, `T90`;
+  - `B0`, `B90`;
+  - `N0`, `N90`;
+  - `S0`, `S90`;
+  - `E0`, `E90`;
+  - `W0`, `W90`.
+  - 0/180 and 90/270 degrees are redundant.
+
+- O (3): <!-- T/B same, N/S same, E/W same, no rotations -->
+  - `T0`, `N0`, `E0`.
+  - Top/Bottom, North/South, and East/West are redundant.
+  - 0/90/180/270 degrees are all redundant.
+
+#### Position
+
+The position of a piece is represented as a triple XYZ coordinate, indicating
+the position of the piece's closest cell to the origin (0, 0, 0) on the board.
+As the board is only 8x8x3 cells, no spaces are needed.
+
 ## About Caminos
 
 Caminos is a two-player abstract strategy game played on a 3D board. Each player
