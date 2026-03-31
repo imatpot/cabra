@@ -9,12 +9,23 @@ pub enum Piece {
 
 impl Piece {
 	/// Returns the canonical position of the piece in its default
-	/// orientation and location, `T0 000`.
+	/// orientation and location; `T0 000`.
 	pub fn canonical_position(&self) -> [(u8, u8, u8); 4] {
 		match self {
+			// █ █ █
+			// █
 			Piece::L => [(0, 0, 0), (1, 0, 0), (2, 0, 0), (0, 1, 0)],
+
+			// █ █ █
+			// █
 			Piece::T => [(0, 0, 0), (1, 0, 0), (2, 0, 0), (1, 1, 0)],
+
+			// █ █
+			//   █ █
 			Piece::Z => [(0, 0, 0), (1, 0, 0), (1, 1, 0), (2, 1, 0)],
+
+			// █ █
+			// █ █
 			Piece::O => [(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)],
 		}
 	}

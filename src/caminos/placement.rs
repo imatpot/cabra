@@ -46,67 +46,17 @@ impl LegalPlacements {
 	}
 }
 
-// /// Returns a static reference to a global `LegalPlacements` instance.
-// /// Computed exactly once upon the first call.
-// pub fn legal_placements() -> &'static LegalPlacements {
-// 	static PLACEMENTS: OnceLock<LegalPlacements> = OnceLock::new();
-// 	PLACEMENTS.get_or_init(|| )
-// }
-
+/// Precomputation of legal placements for all [`Piece`] types.
 pub static LEGAL_PLACEMENTS: LazyLock<LegalPlacements> = LazyLock::new(|| LegalPlacements {
-	of_l: generate_placements_for_piece(Piece::L),
-	of_t: generate_placements_for_piece(Piece::T),
-	of_z: generate_placements_for_piece(Piece::Z),
-	of_o: generate_placements_for_piece(Piece::O),
+	of_l: legal_placements_of_piece(Piece::L),
+	of_t: legal_placements_of_piece(Piece::T),
+	of_z: legal_placements_of_piece(Piece::Z),
+	of_o: legal_placements_of_piece(Piece::O),
 });
 
-/// Applies the given rotation to the given point.
-/// See https://www.euclideanspace.com/maths/algebra/matrix/orthogonal/rotation/index.htm
-fn apply_rotation(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
-	let (x, y, z) = point;
-
-	// Map the face
-	let (fx, fy, fz) = match rotation {
-		Rotation::T0 | Rotation::T90 | Rotation::T180 | Rotation::T270 => (x, y, z),
-		Rotation::B0 | Rotation::B90 | Rotation::B180 | Rotation::B270 => (x, -y, -z),
-		Rotation::N0 | Rotation::N90 | Rotation::N180 | Rotation::N270 => (x, z, -y),
-		Rotation::S0 | Rotation::S90 | Rotation::S180 | Rotation::S270 => (x, -z, y),
-		Rotation::E0 | Rotation::E90 | Rotation::E180 | Rotation::E270 => (-z, y, x),
-		Rotation::W0 | Rotation::W90 | Rotation::W180 | Rotation::W270 => (z, y, -x),
-	};
-
-	// Z-axis rotation
-	match rotation {
-		Rotation::T0 | Rotation::B0 | Rotation::N0 | Rotation::S0 | Rotation::E0 | Rotation::W0 => {
-			(fx, fy, fz)
-		}
-
-		Rotation::T90
-		| Rotation::B90
-		| Rotation::N90
-		| Rotation::S90
-		| Rotation::E90
-		| Rotation::W90 => (-fy, fx, fz),
-
-		Rotation::T180
-		| Rotation::B180
-		| Rotation::N180
-		| Rotation::S180
-		| Rotation::E180
-		| Rotation::W180 => (-fx, -fy, fz),
-
-		Rotation::T270
-		| Rotation::B270
-		| Rotation::N270
-		| Rotation::S270
-		| Rotation::E270
-		| Rotation::W270 => (fy, -fx, fz),
-	}
-}
-
-/// Generates all legal bitboard placements for a given piece across the 8x8x3
-/// board considering all of its unique rotations.
-fn generate_placements_for_piece(piece: Piece) -> Vec<Placement> {
+/// Generates all legal placements for a given piece across the 8x8x3 board with
+/// regard to all of its unique rotations.
+fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 	let mut placements = Vec::new();
 
 	let cells = piece
@@ -115,19 +65,40 @@ fn generate_placements_for_piece(piece: Piece) -> Vec<Placement> {
 
 	for &rotation in piece.unique_rotations() {
 		let rotated_cells: [(i8, i8, i8); 4] = [
-			apply_rotation(cells[0], rotation),
-			apply_rotation(cells[1], rotation),
-			apply_rotation(cells[2], rotation),
-			apply_rotation(cells[3], rotation),
+			rotate_xyz(cells[0], rotation),
+			rotate_xyz(cells[1], rotation),
+			rotate_xyz(cells[2], rotation),
+			rotate_xyz(cells[3], rotation),
 		];
 
-		// Find & set dimensions of piece
-		let min_x = rotated_cells.iter().map(|b| b.0).min().unwrap();
-		let min_y = rotated_cells.iter().map(|b| b.1).min().unwrap();
-		let min_z = rotated_cells.iter().map(|b| b.2).min().unwrap();
-		let max_x = rotated_cells.iter().map(|b| b.0).max().unwrap();
-		let max_y = rotated_cells.iter().map(|b| b.1).max().unwrap();
-		let max_z = rotated_cells.iter().map(|b| b.2).max().unwrap();
+		// Find bounds and size of rotated piece
+		let mut min_x = i8::MAX;
+		let mut min_y = i8::MAX;
+		let mut min_z = i8::MAX;
+		let mut max_x = i8::MIN;
+		let mut max_y = i8::MIN;
+		let mut max_z = i8::MIN;
+
+		for cell in &rotated_cells {
+			if cell.0 < min_x {
+				min_x = cell.0;
+			}
+			if cell.1 < min_y {
+				min_y = cell.1;
+			}
+			if cell.2 < min_z {
+				min_z = cell.2;
+			}
+			if cell.0 > max_x {
+				max_x = cell.0;
+			}
+			if cell.1 > max_y {
+				max_y = cell.1;
+			}
+			if cell.2 > max_z {
+				max_z = cell.2;
+			}
+		}
 
 		let width = max_x - min_x + 1;
 		let height = max_y - min_y + 1;
@@ -167,6 +138,50 @@ fn generate_placements_for_piece(piece: Piece) -> Vec<Placement> {
 	}
 
 	placements
+}
+
+/// Applies a rotation to a coordinate.
+/// See https://www.euclideanspace.com/maths/algebra/matrix/orthogonal/rotation/index.htm
+fn rotate_xyz(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
+	let (x, y, z) = point;
+
+	// Map the face
+	let (fx, fy, fz) = match rotation {
+		Rotation::T0 | Rotation::T90 | Rotation::T180 | Rotation::T270 => (x, y, z),
+		Rotation::B0 | Rotation::B90 | Rotation::B180 | Rotation::B270 => (x, -y, -z),
+		Rotation::N0 | Rotation::N90 | Rotation::N180 | Rotation::N270 => (x, z, -y),
+		Rotation::S0 | Rotation::S90 | Rotation::S180 | Rotation::S270 => (x, -z, y),
+		Rotation::E0 | Rotation::E90 | Rotation::E180 | Rotation::E270 => (-z, y, x),
+		Rotation::W0 | Rotation::W90 | Rotation::W180 | Rotation::W270 => (z, y, -x),
+	};
+
+	// Z-axis rotation
+	match rotation {
+		Rotation::T0 | Rotation::B0 | Rotation::N0 | Rotation::S0 | Rotation::E0 | Rotation::W0 => {
+			(fx, fy, fz)
+		}
+
+		Rotation::T90
+		| Rotation::B90
+		| Rotation::N90
+		| Rotation::S90
+		| Rotation::E90
+		| Rotation::W90 => (-fy, fx, fz),
+
+		Rotation::T180
+		| Rotation::B180
+		| Rotation::N180
+		| Rotation::S180
+		| Rotation::E180
+		| Rotation::W180 => (-fx, -fy, fz),
+
+		Rotation::T270
+		| Rotation::B270
+		| Rotation::N270
+		| Rotation::S270
+		| Rotation::E270
+		| Rotation::W270 => (fy, -fx, fz),
+	}
 }
 
 impl std::fmt::Display for Placement {
