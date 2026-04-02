@@ -184,6 +184,10 @@ fn rotate_xyz(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
 	}
 }
 
+// -------------------------------------------------------------------------- //
+// UTILITY IMPLS                                                              //
+// -------------------------------------------------------------------------- //
+
 impl std::fmt::Display for Placement {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(

@@ -10,7 +10,7 @@ use crate::util::ansi;
 /// The cells are indexed in rows, so in `(x, y)` notation,
 /// `(0, 0)` through `(7, 0)` are the first 8 bits,
 /// `(0, 1)` through `(7, 1)` are the next 8 bits, and so on.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Layer {
 	pub cells: u64,
 }
@@ -99,7 +99,7 @@ impl Layer {
 
 /// A Caminos bitboard consisting of 3 [`Layer`]s.
 /// Like [`Layer`], it is player-agnostic and only tracks occupied cells.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BitBoard {
 	pub layers: [Layer; 3],
 }
@@ -153,12 +153,6 @@ impl BitBoard {
 		self.shift_north() | self.shift_east() | self.shift_south() | self.shift_west()
 	}
 
-	/// Returns whether the `(x, y, z)` position is occupied.
-	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
-		(x < 8 && y < 8 && z < 3)
-			&& (self.layers[z as usize].cells >> Layer::bit_index_of_xy(x, y) & 1 == 1)
-	}
-
 	/// Whether the [`BitBoard`] has no occupied cells.
 	pub fn is_empty(&self) -> bool {
 		self.layers[0].is_empty() && self.layers[1].is_empty() && self.layers[2].is_empty()
@@ -170,6 +164,12 @@ impl BitBoard {
 		let layer_2_floating = self.layers[2] & !self.layers[1];
 		let layer_1_floating = self.layers[1] & !self.layers[0];
 		!layer_2_floating.is_empty() || !layer_1_floating.is_empty()
+	}
+
+	/// Returns whether the `(x, y, z)` position is occupied.
+	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
+		(x < 8 && y < 8 && z < 3)
+			&& (self.layers[z as usize].cells >> Layer::bit_index_of_xy(x, y) & 1 == 1)
 	}
 
 	/// Returns whether there is a valid bridge spanning from north to south
@@ -240,7 +240,7 @@ impl BitBoard {
 				next_n_s = usable & !visited_n_s & expand(&next_n_s);
 			}
 
-			if !next_n_s.is_empty() {
+			if !next_w_e.is_empty() {
 				// Expand into unvisited usable cells if there was an expansion
 				next_w_e = usable & !visited_w_e & expand(&next_w_e);
 			}
@@ -277,6 +277,10 @@ impl BitBoard {
 		Self { layers }
 	}
 }
+
+// -------------------------------------------------------------------------- //
+// UTILITY IMPLS                                                              //
+// -------------------------------------------------------------------------- //
 
 impl std::fmt::Display for BitBoard {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -480,5 +484,241 @@ impl From<[u64; 3]> for BitBoard {
 impl From<[Layer; 3]> for BitBoard {
 	fn from(layers: [Layer; 3]) -> Self {
 		BitBoard::new(layers)
+	}
+}
+
+// -------------------------------------------------------------------------- //
+// TESTS                                                                      //
+// -------------------------------------------------------------------------- //
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn layer_shift_north() {
+		let layer = Layer::from((3, 4));
+		let shifted = layer.shift_north();
+
+		assert_eq!(shifted, Layer::from((3, 3)));
+	}
+
+	#[test]
+	fn layer_shift_north_no_wrap() {
+		let layer = Layer::from((3, 0));
+		let shifted = layer.shift_north();
+
+		assert_eq!(shifted, Layer::EMPTY);
+	}
+
+	#[test]
+	fn layer_shift_east() {
+		let layer = Layer::from((3, 4));
+		let shifted = layer.shift_east();
+
+		assert_eq!(shifted, Layer::from((4, 4)));
+	}
+
+	#[test]
+	fn layer_shift_east_no_wrap() {
+		let layer = Layer::from((7, 4));
+		let shifted = layer.shift_east();
+
+		assert_eq!(shifted, Layer::EMPTY);
+	}
+
+	#[test]
+	fn layer_shift_south() {
+		let layer = Layer::from((3, 4));
+		let shifted = layer.shift_south();
+
+		assert_eq!(shifted, Layer::from((3, 5)));
+	}
+
+	#[test]
+	fn layer_shift_south_no_wrap() {
+		let layer = Layer::from((3, 7));
+		let shifted = layer.shift_south();
+
+		assert_eq!(shifted, Layer::EMPTY);
+	}
+
+	#[test]
+	fn layer_shift_west() {
+		let layer = Layer::from((3, 4));
+		let shifted = layer.shift_west();
+
+		assert_eq!(shifted, Layer::from((2, 4)));
+	}
+
+	#[test]
+	fn layer_shift_west_no_wrap() {
+		let layer = Layer::from((0, 4));
+		let shifted = layer.shift_west();
+
+		assert_eq!(shifted, Layer::EMPTY);
+	}
+
+	#[test]
+	fn layer_shift_cardinally() {
+		let layer = Layer::from((3, 3));
+		let shifted = layer.shift_cardinally();
+
+		assert_eq!(
+			shifted,
+			Layer::from((3, 2)) | Layer::from((4, 3)) | Layer::from((3, 4)) | Layer::from((2, 3))
+		);
+	}
+
+	#[test]
+	fn bitboard_shift_north() {
+		let board = BitBoard::from((1, 1, 1)) & BitBoard::from((2, 2, 2));
+		let shifted = board.shift_north();
+
+		assert_eq!(
+			shifted,
+			BitBoard::from((1, 0, 1)) & BitBoard::from((2, 1, 2))
+		);
+	}
+
+	#[test]
+	fn bitboard_shift_east() {
+		let board = BitBoard::from((1, 1, 1)) & BitBoard::from((2, 2, 2));
+		let shifted = board.shift_east();
+
+		assert_eq!(
+			shifted,
+			BitBoard::from((2, 1, 1)) & BitBoard::from((3, 2, 2))
+		);
+	}
+
+	#[test]
+	fn bitboard_shift_south() {
+		let board = BitBoard::from((1, 1, 1)) & BitBoard::from((2, 2, 2));
+		let shifted = board.shift_south();
+
+		assert_eq!(
+			shifted,
+			BitBoard::from((1, 2, 1)) & BitBoard::from((2, 3, 2))
+		);
+	}
+
+	#[test]
+	fn bitboard_shift_west() {
+		let board = BitBoard::from((1, 1, 1)) & BitBoard::from((2, 2, 2));
+		let shifted = board.shift_west();
+
+		assert_eq!(
+			shifted,
+			BitBoard::from((0, 1, 1)) & BitBoard::from((1, 2, 2))
+		);
+	}
+
+	#[test]
+	fn bitboard_has_floating_cells_false() {
+		let board = BitBoard::from((1, 1, 0));
+
+		assert!(!board.has_floating_cells());
+	}
+
+	#[test]
+	fn bitboard_has_floating_cells_true() {
+		let board = BitBoard::from((1, 1, 1));
+
+		assert!(board.has_floating_cells());
+	}
+
+	#[test]
+	fn bitboard_has_bridge_false_empty() {
+		let board = BitBoard::from([
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(!board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_false_1_gap() {
+		let board = BitBoard::from([
+			0b_00001000_00001000_00001000_00000000_00001000_00001000_00001000_00001000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(!board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_false_diagonal() {
+		let board = BitBoard::from([
+			0b_10000000_01000000_00100000_00010000_00001000_00000100_00000010_00000001,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(!board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_false_covered() {
+		let board = BitBoard::from([
+			0b_10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		let other = BitBoard::from([
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(!board.has_bridge(&other));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_true_straight() {
+		let board = BitBoard::from([
+			0b_00001000_00001000_00001000_00001000_00001000_00001000_00001000_00001000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_true_same_layer_jagged() {
+		let board = BitBoard::from([
+			0b_00110000_00011000_00001100_00000110_00000011_00000001_00000001_00000001,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_true_staircase() {
+		let board = BitBoard::from([
+			0b_10000110_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_01010101_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_00101000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(board.has_bridge(&BitBoard::EMPTY));
+	}
+
+	#[test]
+	fn bitboard_has_bridge_true_straight_down() {
+		let board = BitBoard::from([
+			0b_01111111_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+			0b_10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		]);
+
+		assert!(board.has_bridge(&BitBoard::EMPTY));
 	}
 }
