@@ -2,11 +2,11 @@
 
 use rand::seq::IndexedRandom;
 
-use crate::caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS};
+pub mod caminos;
+pub mod mcts;
+pub mod util;
 
-mod caminos;
-mod mcts;
-mod util;
+use crate::caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS};
 
 fn main() {
 	println!("EMPTY\n{}", BitBoard::EMPTY);
