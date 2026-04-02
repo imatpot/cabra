@@ -17,22 +17,63 @@ pub struct Layer {
 
 impl Layer {
 	/// A [`Layer`] with no occupied cells.
-	pub const EMPTY: Self = Self::new(0x0000000000000000);
+	pub const EMPTY: Self =
+		Self::new(0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000);
 
 	/// A [`Layer`] with all edge cells occupied.
-	pub const PERIMETER: Self = Self::new(0xFF818181818181FF);
+	pub const PERIMETER: Self =
+		Self::new(0b_11111111_10000001_10000001_10000001_10000001_10000001_10000001_11111111);
 
 	/// A [`Layer`] with all cells along the north edge (negative Y) occupied.
-	pub const NORTH_EDGE: Self = Self::new(0xFF00000000000000);
-
-	/// A [`Layer`] with all cells along the south edge (positive Y) occupied.
-	pub const SOUTH_EDGE: Self = Self::new(0x00000000000000FF);
+	pub const NORTH: Self =
+		Self::new(0b_11111111_00000000_00000000_00000000_00000000_00000000_00000000_00000000);
 
 	/// A [`Layer`] with all cells along the east edge (positive X) occupied.
-	pub const EAST_EDGE: Self = Self::new(0x8080808080808080);
+	pub const EAST: Self =
+		Self::new(0b_00000001_00000001_00000001_00000001_00000001_00000001_00000001_00000001);
+
+	/// A [`Layer`] with all cells along the south edge (positive Y) occupied.
+	pub const SOUTH: Self =
+		Self::new(0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_11111111);
 
 	/// A [`Layer`] with all cells along the west edge (negative X) occupied.
-	pub const WEST_EDGE: Self = Self::new(0x0101010101010101);
+	pub const WEST: Self =
+		Self::new(0b_10000000_10000000_10000000_10000000_10000000_10000000_10000000_10000000);
+
+	/// Shifts all cells shifted one step to the north (negative Y).
+	/// Does not wrap around.
+	pub fn shift_north(self) -> Self {
+		(self & !Self::NORTH) << 8
+	}
+
+	/// Shifts all cells shifted one step to the east (positive X).
+	/// Does not wrap around.
+	pub fn shift_east(self) -> Self {
+		(self & !Self::EAST) >> 1
+	}
+
+	/// Shifts all cells shifted one step to the south (positive Y).
+	/// Does not wrap around.
+	pub fn shift_south(self) -> Self {
+		(self & !Self::SOUTH) >> 8
+	}
+
+	/// Shifts all cells shifted one step to the west (negative X).
+	/// Does not wrap around.
+	pub fn shift_west(self) -> Self {
+		(self & !Self::WEST) << 1
+	}
+
+	/// Shifts all cells one step in all four cardinal directions.
+	/// Does not wrap around.
+	pub fn shift_cardinally(self) -> Self {
+		self.shift_north() | self.shift_east() | self.shift_south() | self.shift_west()
+	}
+
+	/// Returns a [`Layer`] with an occupied cell at the given coordinates.
+	pub fn bit_index_of_xy(x: u8, y: u8) -> u8 {
+		63 - (y * 8 + x)
+	}
 
 	/// Returns whether the [`Layer`] has no occupied cells.
 	pub fn is_empty(&self) -> bool {
@@ -48,11 +89,6 @@ impl Layer {
 		} else {
 			Self::EMPTY
 		}
-	}
-
-	/// Returns a [`Layer`] with an occupied cell at the given coordinates.
-	pub fn bit_index_of_xy(x: u8, y: u8) -> u8 {
-		63 - (y * 8 + x)
 	}
 
 	/// Returns a [`Layer`] with the given occupied cells.
@@ -75,9 +111,154 @@ impl BitBoard {
 	/// A [`BitBoard`] where all cells along the bottom perimeter are occupied.
 	pub const BOTTOM_PERIMETER: Self = Self::new([Layer::PERIMETER, Layer::EMPTY, Layer::EMPTY]);
 
+	/// A [`BitBoard`] where all cells in the north (negative Y) are occupied.
+	pub const NORTH: Self = Self::new([Layer::NORTH; 3]);
+
+	/// A [`BitBoard`] where all cells in the east (positive X) are occupied.
+	pub const EAST: Self = Self::new([Layer::EAST; 3]);
+
+	/// A [`BitBoard`] where all cells in the south (positive Y) are occupied.
+	pub const SOUTH: Self = Self::new([Layer::SOUTH; 3]);
+
+	/// A [`BitBoard`] where all cells in the west (negative X) are occupied.
+	pub const WEST: Self = Self::new([Layer::WEST; 3]);
+
+	/// Shifts all cells shifted one step to the north (negative Y).
+	/// Does not wrap around.
+	pub fn shift_north(self) -> Self {
+		(self & !Self::NORTH) << 8
+	}
+
+	/// Shifts all cells shifted one step to the east (positive X).
+	/// Does not wrap around.
+	pub fn shift_east(self) -> Self {
+		(self & !Self::EAST) >> 1
+	}
+
+	/// Shifts all cells shifted one step to the south (positive Y).
+	/// Does not wrap around.
+	pub fn shift_south(self) -> Self {
+		(self & !Self::SOUTH) >> 8
+	}
+
+	/// Shifts all cells shifted one step to the west (negative X).
+	/// Does not wrap around.
+	pub fn shift_west(self) -> Self {
+		(self & !Self::WEST) << 1
+	}
+
+	/// Shifts all cells one step in all four cardinal directions.
+	/// Does not wrap around.
+	pub fn shift_cardinally(self) -> Self {
+		self.shift_north() | self.shift_east() | self.shift_south() | self.shift_west()
+	}
+
+	/// Returns whether the `(x, y, z)` position is occupied.
+	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
+		(x < 8 && y < 8 && z < 3)
+			&& (self.layers[z as usize].cells >> Layer::bit_index_of_xy(x, y) & 1 == 1)
+	}
+
 	/// Whether the [`BitBoard`] has no occupied cells.
 	pub fn is_empty(&self) -> bool {
 		self.layers[0].is_empty() && self.layers[1].is_empty() && self.layers[2].is_empty()
+	}
+
+	/// Returns if there are any occupied cells that do not have an occupied
+	/// cell directly below them, defying Caminos' gravity rules.
+	pub fn has_floating_cells(&self) -> bool {
+		let layer_2_floating = self.layers[2] & !self.layers[1];
+		let layer_1_floating = self.layers[1] & !self.layers[0];
+		!layer_2_floating.is_empty() || !layer_1_floating.is_empty()
+	}
+
+	/// Returns whether there is a valid bridge spanning from north to south
+	/// or west to east, according to Caminos' bridging rules.
+	pub fn has_bridge(&self, other: &BitBoard) -> bool {
+		let usable: BitBoard = [
+			// Layer 0 with no opponent above them in layer 1 or layer 2
+			self.layers[0] & !other.layers[1] & !other.layers[2],
+			// Layer 1 with no opponent above them in layer 2
+			self.layers[1] & !other.layers[2],
+			// Topmost layer, always non-covered
+			self.layers[2],
+		]
+		.into();
+
+		// Begin north and west
+		let mut visited_n_s = usable & Self::NORTH;
+		let mut visited_w_e = usable & Self::WEST;
+		let mut next_n_s = visited_n_s;
+		let mut next_w_e = visited_w_e;
+
+		/// Expands the given bitboard by one step in all manners which are
+		/// allowed by Caminos' bridging rules. Specifically,
+		///
+		/// - Cardinally on the same layer
+		/// - Cardinally up or down one layer
+		/// - Straight up or down one layer
+		fn expand(base: &BitBoard) -> BitBoard {
+			let cardinals = base.shift_cardinally();
+			return [
+				(
+					// Cardinally on same layer
+					cardinals.layers[0]
+    				// Cardinally down from layer 1
+    				| cardinals.layers[1]
+    				// Straight down from layer 1
+    				| base.layers[1]
+				),
+				(
+					// Cardinally on same layer
+					cardinals.layers[1]
+                    // Cardinally up from layer 0
+                    | cardinals.layers[0]
+                    // Cardinally shifted down from layer 1
+                    | cardinals.layers[2]
+                    // Straight up from layer 0
+                    | base.layers[0]
+                    // Straight down from layer 2
+                    | base.layers[2]
+				),
+				(
+					// Cardinally on same layer
+					cardinals.layers[2]
+					// Cardinally up from layer 1
+					| cardinals.layers[1]
+					// Straight up from layer 1
+					| base.layers[1]
+				),
+			]
+			.into();
+		}
+
+		// Expand north-south and west-east at the same time, until no more
+		// expansions are happening or a bridge is found
+		loop {
+			if !next_n_s.is_empty() {
+				// Expand into unvisited usable cells if there was an expansion
+				next_n_s = usable & !visited_n_s & expand(&next_n_s);
+			}
+
+			if !next_n_s.is_empty() {
+				// Expand into unvisited usable cells if there was an expansion
+				next_w_e = usable & !visited_w_e & expand(&next_w_e);
+			}
+
+			if !(next_n_s & Self::SOUTH).is_empty() || !(next_w_e & Self::EAST).is_empty() {
+				// South or east reached
+				return true;
+			}
+
+			if next_n_s.is_empty() && next_w_e.is_empty() {
+				// No more expansions
+				return false;
+			}
+
+			// Extend visited cells by expansion
+			visited_n_s = visited_n_s | next_n_s;
+			visited_w_e = visited_w_e | next_w_e;
+		}
 	}
 
 	/// Returns a [`BitBoard`] with an occupied cell at the given coordinates.
@@ -89,35 +270,6 @@ impl BitBoard {
 				if z == 2 { (x, y).into() } else { Layer::EMPTY },
 			],
 		}
-	}
-
-	/// Returns whether the `(x, y, z)` position is occupied.
-	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
-		(x < 8 && y < 8 && z < 3)
-			&& (self.layers[z as usize].cells >> Layer::bit_index_of_xy(x, y) & 1 == 1)
-	}
-
-	/// Returns if there are any occupied cells that do not have an occupied
-	/// cell directly below them, defying Caminos' gravity rules.
-	pub fn has_floating_cells(&self) -> bool {
-		let layer_2_floating = self.layers[2] & !self.layers[1];
-		let layer_1_floating = self.layers[1] & !self.layers[0];
-		!layer_2_floating.is_empty() || !layer_1_floating.is_empty()
-	}
-
-	pub fn has_bridge(&self, other: &BitBoard) -> bool {
-		let non_covered = BitBoard {
-			layers: [
-				// layer 0 with no opponent above them in layer 1 or layer 2
-				self.layers[0] & !other.layers[1] & !other.layers[2],
-				// layer 1 with no opponent above them in layer 2
-				self.layers[1] & !other.layers[2],
-				// topmost layer, always non-covered
-				self.layers[2],
-			],
-		};
-
-		false
 	}
 
 	/// Returns a board with the given layers.
@@ -216,6 +368,17 @@ impl std::ops::Shr<u8> for Layer {
 	}
 }
 
+impl std::ops::Not for BitBoard {
+	type Output = Self;
+
+	fn not(mut self) -> Self::Output {
+		self.layers[0].cells = !self.layers[0].cells;
+		self.layers[1].cells = !self.layers[1].cells;
+		self.layers[2].cells = !self.layers[2].cells;
+		self
+	}
+}
+
 impl std::ops::BitAnd for BitBoard {
 	type Output = Self;
 
@@ -258,6 +421,34 @@ impl std::ops::BitXor for BitBoard {
 	}
 }
 
+impl std::ops::Shl<u8> for BitBoard {
+	type Output = Self;
+
+	fn shl(self, rhs: u8) -> Self::Output {
+		Self {
+			layers: [
+				self.layers[0] << rhs,
+				self.layers[1] << rhs,
+				self.layers[2] << rhs,
+			],
+		}
+	}
+}
+
+impl std::ops::Shr<u8> for BitBoard {
+	type Output = Self;
+
+	fn shr(self, rhs: u8) -> Self::Output {
+		Self {
+			layers: [
+				self.layers[0] >> rhs,
+				self.layers[1] >> rhs,
+				self.layers[2] >> rhs,
+			],
+		}
+	}
+}
+
 impl From<u64> for Layer {
 	fn from(cells: u64) -> Self {
 		Layer { cells }
@@ -278,6 +469,16 @@ impl From<(u8, u8, u8)> for BitBoard {
 
 impl From<[u64; 3]> for BitBoard {
 	fn from(value: [u64; 3]) -> Self {
-		BitBoard::new([value[0].into(), value[1].into(), value[2].into()])
+		BitBoard::new([
+			Layer::new(value[0]),
+			Layer::new(value[1]),
+			Layer::new(value[2]),
+		])
+	}
+}
+
+impl From<[Layer; 3]> for BitBoard {
+	fn from(layers: [Layer; 3]) -> Self {
+		BitBoard::new(layers)
 	}
 }

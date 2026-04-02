@@ -2,15 +2,15 @@
 
 use rand::seq::IndexedRandom;
 
-use crate::caminos::{piece::Piece, placement::LEGAL_PLACEMENTS};
+use crate::caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS};
 
 mod caminos;
 mod mcts;
 mod util;
 
 fn main() {
-	// println!("EMPTY\n{}", BitBoard::EMPTY);
-	// println!("BOTTOM EDGE\n{}", BitBoard::BOTTOM_EDGE);
+	println!("EMPTY\n{}", BitBoard::EMPTY);
+	println!("BOTTOM PERIMETER\n{}", BitBoard::BOTTOM_PERIMETER);
 
 	// for p in LEGAL_PLACEMENTS.of_piece(&Piece::O).iter() {
 	// 	println!(
@@ -40,8 +40,19 @@ fn main() {
 		println!("{}\n{}", random_placement, random_placement.board_mask);
 	}
 
-	// let a: BitBoard = [0x7E000000000000, 0x81000000000000, 0x00000000000000].into();
-	// let b: BitBoard = [0x00000000000000, 0x00000000000000, 0x00000000000000].into();
+	let a: BitBoard = [
+		0b_11000000_01111011_00001110_00000000_00000000_00000000_00000000_00000000,
+		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+	]
+	.into();
 
-	// println!("{}\n{}\n{}", a.has_bridge(&b), a, b);
+	let b: BitBoard = [
+		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
+	]
+	.into();
+
+	println!("A (has bridge: {}):\n{}\nB:\n{}", a.has_bridge(&b), a, b);
 }
