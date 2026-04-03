@@ -20,16 +20,16 @@ fn bench_has_bridge(c: &mut Criterion) {
 		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
 	]);
 
+	let realistic = BitBoard::from([
+		0b_11100000_00100000_00100000_00000000_00000000_00000000_00000000_00000000,
+		0b_00000000_00000000_00110000_00010000_00000011_00000000_00000000_00000000,
+		0b_00000000_00000000_00000000_00011110_00000000_00000000_00000000_00000000,
+	]);
+
 	let snake = BitBoard::from([
 		0b_00000000_01011100_01000000_01101110_00000000_01011100_01000000_01101110,
 		0b_00000000_01010100_00000000_00101010_00000000_01010100_00000000_00101010,
 		0b_00000011_01110110_00000000_00111010_00000010_01110110_00000000_00111011,
-	]);
-
-	let cover = BitBoard::from([
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000001,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
 	]);
 
 	group.bench_function("empty", |b| {
@@ -44,24 +44,16 @@ fn bench_has_bridge(c: &mut Criterion) {
 		b.iter(|| black_box(jagged).has_bridge(black_box(&empty)))
 	});
 
+	group.bench_function("realistic", |b| {
+		b.iter(|| black_box(realistic).has_bridge(black_box(&empty)))
+	});
+
 	group.bench_function("full", |b| {
 		b.iter(|| black_box(full).has_bridge(black_box(&empty)))
 	});
 
 	group.bench_function("snake", |b| {
 		b.iter(|| black_box(snake).has_bridge(black_box(&empty)))
-	});
-
-	group.bench_function("straight_covered", |b| {
-		b.iter(|| black_box(straight).has_bridge(black_box(&cover)))
-	});
-
-	group.bench_function("jagged_covered", |b| {
-		b.iter(|| black_box(jagged).has_bridge(black_box(&cover)))
-	});
-
-	group.bench_function("snake_covered", |b| {
-		b.iter(|| black_box(snake).has_bridge(black_box(&cover)))
 	});
 
 	group.finish();
