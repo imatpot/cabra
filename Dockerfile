@@ -1,26 +1,22 @@
-FROM rust:1.94.0-alpine AS builder
-
-RUN apk add --no-cache \
-    build-base
+FROM rust:1.94.0-alpine AS rs
 
 WORKDIR /app
+RUN apk add --no-cache build-base
+RUN cargo install cargo-chef
 
-COPY Cargo.toml Cargo.lock ./
+FROM rs AS planner
 
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-RUN cargo build --release && \
-    rm -rf src
+FROM rs AS builder
 
-COPY src ./src/
-
-RUN touch src/main.rs && \
-    cargo build --release && \
-    chmod +x "target/release/cabra"
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY . .
+RUN cargo build --release
 
 FROM scratch AS final
 
 COPY --from=builder /app/target/release/cabra /usr/local/bin/cabra
-
 ENTRYPOINT [ "cabra" ]
