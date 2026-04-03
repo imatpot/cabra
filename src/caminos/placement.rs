@@ -21,6 +21,13 @@ pub struct LegalPlacements {
 }
 
 impl LegalPlacements {
+	/// Returns all possible placements in a single slice.
+	pub fn all(&self) -> impl Iterator<Item = &Placement> {
+		[&self.of_l, &self.of_t, &self.of_z, &self.of_o]
+			.into_iter()
+			.flatten()
+	}
+
 	/// Returns the slice of all possible placements for the given piece.
 	pub fn of_piece(&self, piece: &Piece) -> &[Placement] {
 		match piece {
@@ -40,6 +47,32 @@ impl LegalPlacements {
 		board: &BitBoard,
 	) -> impl Iterator<Item = &Placement> {
 		self.of_piece(piece).iter().filter(|placement| {
+			(placement.board_mask & *board).is_empty()
+				&& !(placement.board_mask | *board).has_floating_cells()
+		})
+	}
+
+	/// Returns an iterator yielding all placements for the given pieces that do
+	/// not overlap with the occupied cells in the provided board and do not
+	/// introduce any floating cells.
+	pub fn of_many_no_overlap_no_floating(
+		&self,
+		pieces: &[Piece],
+		board: &BitBoard,
+	) -> impl Iterator<Item = &Placement> {
+		pieces
+			.iter()
+			.flat_map(|piece| self.of_piece_no_overlap_no_floating(piece, board))
+	}
+
+	/// Returns an iterator yielding all combined placements that do
+	/// not overlap with the occupied cells in the provided board and do not
+	/// introduce any floating cells.
+	pub fn of_all_no_overlap_no_floating(
+		&self,
+		board: &BitBoard,
+	) -> impl Iterator<Item = &Placement> {
+		self.all().filter(|placement| {
 			(placement.board_mask & *board).is_empty()
 				&& !(placement.board_mask | *board).has_floating_cells()
 		})

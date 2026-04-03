@@ -1,8 +1,37 @@
 use rand::{Rng, seq::IndexedRandom};
 
-use crate::caminos::{board::BitBoard, piece::Piece, placement::Placement};
+use crate::caminos::{
+	board::BitBoard,
+	piece::Piece,
+	placement::{LEGAL_PLACEMENTS, Placement},
+};
+
+/// The two players of a Caminos game.
+#[derive(Clone, Copy, Debug)]
+pub enum Player {
+	A,
+	B,
+}
+
+/// The result of a Caminos game.
+/// A win can be strong (built a bridge) or weak (fewer pieces touching the
+/// bottom perimeter; [`BitBoard::BOTTOM_PERIMETER`]).
+/// A win for one player automatically results in a loss for the other.
+/// The game may also end in a draw.
+#[derive(Debug)]
+pub enum GameResult {
+	/// The player has built a bridge.
+	StrongWin(Player),
+	/// Neither player built a bridge but the player has fewer pieces touching
+	/// the bottom perimeter ([`BitBoard::BOTTOM_PERIMETER`]).
+	WeakWin(Player),
+	/// Neither player built a bridge and both players have the same amount of
+	/// pieces touching the bottom perimeter ([`BitBoard::BOTTOM_PERIMETER`]).
+	Draw,
+}
 
 /// Game state of a single Caminos player.
+#[derive(Clone, Copy)]
 pub struct PlayerState {
 	/// A bitboard representing the cells occupied by this player's pieces.
 	pub occupancy: BitBoard,
@@ -71,15 +100,44 @@ impl PlayerState {
 
 		piece.copied()
 	}
+
+	/// Returns whether the player has any pieces left.
+	pub fn has_pieces(&self) -> bool {
+		self.l_remaining > 0 || self.t_remaining > 0 || self.z_remaining > 0 || self.o_remaining > 0
+	}
+
+	/// Returns a list of the piece types that this player can still place.
+	pub fn remaining_piece_types(&self) -> Vec<Piece> {
+		let mut pieces = Vec::new();
+
+		if self.l_remaining > 0 {
+			pieces.push(Piece::L);
+		}
+
+		if self.t_remaining > 0 {
+			pieces.push(Piece::T);
+		}
+
+		if self.z_remaining > 0 {
+			pieces.push(Piece::Z);
+		}
+
+		if self.o_remaining > 0 {
+			pieces.push(Piece::O);
+		}
+
+		pieces
+	}
 }
 
 /// Game state of a Caminos game.
+#[derive(Clone)]
 pub struct GameState {
 	/// The state of each player in the game.
 	pub players: [PlayerState; 2],
 
-	/// The index of the current player (0 or 1).
-	pub current_player: u8,
+	/// The current player.
+	pub current_player: Player,
 
 	/// The ordered sequence of placements made in the game.
 	pub moves: Vec<Placement>,
@@ -90,12 +148,78 @@ impl GameState {
 	/// player 0 starting.
 	pub const EMPTY: Self = Self {
 		players: [PlayerState::EMPTY, PlayerState::EMPTY],
-		current_player: 0,
+		current_player: Player::A,
 		moves: Vec::new(),
 	};
 
 	/// Swaps the current player, changing the turn to the other player.
 	pub fn swap_players(&mut self) {
-		self.current_player = 1 - self.current_player;
+		self.current_player = !self.current_player;
+	}
+
+	/// Determines the winner of the game, if any.
+	/// Returns [`Some`] if the game state can be determined,
+	/// or [`None`] if the game has not yet concluded.
+	pub fn determine_winner(&self) -> Option<GameResult> {
+		let a = self.players[0];
+		let b = self.players[1];
+
+		if a.occupancy.has_bridge(&b.occupancy) {
+			return Some(GameResult::StrongWin(Player::A));
+		}
+
+		if b.occupancy.has_bridge(&a.occupancy) {
+			return Some(GameResult::StrongWin(Player::B));
+		}
+
+		let used = a.occupancy | b.occupancy;
+		let current = match self.current_player {
+			Player::A => a,
+			Player::B => b,
+		};
+
+		if LEGAL_PLACEMENTS
+			.of_many_no_overlap_no_floating(&current.remaining_piece_types(), &used)
+			.peekable()
+			.peek()
+			.is_some()
+		{
+			// Current player can still place pieces, so the game is not over
+			return None;
+		}
+
+		if a.pieces_touching_bottom_edge < b.pieces_touching_bottom_edge {
+			return Some(GameResult::WeakWin(Player::A));
+		}
+
+		if b.pieces_touching_bottom_edge < a.pieces_touching_bottom_edge {
+			return Some(GameResult::StrongWin(Player::B));
+		}
+
+		Some(GameResult::Draw)
+	}
+}
+
+// -------------------------------------------------------------------------- //
+// UTILITY IMPLS                                                              //
+// -------------------------------------------------------------------------- //
+
+impl std::ops::Not for Player {
+	type Output = Player;
+
+	fn not(self) -> Self::Output {
+		match self {
+			Player::A => Player::B,
+			Player::B => Player::A,
+		}
+	}
+}
+
+impl Into<usize> for Player {
+	fn into(self) -> usize {
+		match self {
+			Player::A => 0,
+			Player::B => 1,
+		}
 	}
 }
