@@ -7,7 +7,8 @@ pub struct PlayerState {
 	/// A bitboard representing the cells occupied by this player's pieces.
 	pub occupancy: BitBoard,
 
-	/// The number of this player's pieces that are touching the bottom edge of the board.
+	/// The number of this player's pieces that are touching the bottom edge
+	/// of the board.
 	pub pieces_touching_bottom_edge: u8,
 
 	/// The number of L-pieces remaining for this player.
@@ -24,7 +25,8 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
-	/// Creates a new player state with no occupied cells and the default number of pieces.
+	/// Creates a new player state with no occupied cells and the default
+	/// number of pieces.
 	pub const EMPTY: Self = Self {
 		occupancy: BitBoard::EMPTY,
 		pieces_touching_bottom_edge: 0,
@@ -36,33 +38,27 @@ impl PlayerState {
 
 	/// Returns a random piece that this player can still place and decrements
 	/// the count of that piece type.
-	/// If the player has no pieces left, returns `None`.
+	/// Returns `None` if the player has no pieces left.
 	pub fn random_piece(&mut self, rng: &mut impl Rng) -> Option<Piece> {
-		let piece = [
-			if self.l_remaining > 0 {
-				Some(Piece::L)
-			} else {
-				None
-			},
-			if self.t_remaining > 0 {
-				Some(Piece::T)
-			} else {
-				None
-			},
-			if self.z_remaining > 0 {
-				Some(Piece::Z)
-			} else {
-				None
-			},
-			if self.o_remaining > 0 {
-				Some(Piece::O)
-			} else {
-				None
-			},
-		]
-		.choose(rng)
-		.copied()
-		.flatten();
+		let mut pieces = Vec::new();
+
+		if self.l_remaining > 0 {
+			pieces.push(Piece::L);
+		}
+
+		if self.t_remaining > 0 {
+			pieces.push(Piece::T);
+		}
+
+		if self.z_remaining > 0 {
+			pieces.push(Piece::Z);
+		}
+
+		if self.o_remaining > 0 {
+			pieces.push(Piece::O);
+		}
+
+		let piece = pieces.choose(rng);
 
 		if let Some(piece) = piece {
 			match piece {
@@ -73,7 +69,7 @@ impl PlayerState {
 			}
 		}
 
-		piece
+		piece.copied()
 	}
 }
 
@@ -90,7 +86,8 @@ pub struct GameState {
 }
 
 impl GameState {
-	/// Creates a new game state with both players in the initial state and player 0 starting.
+	/// Creates a new game state with both players in the initial state and
+	/// player 0 starting.
 	pub const EMPTY: Self = Self {
 		players: [PlayerState::EMPTY, PlayerState::EMPTY],
 		current_player: 0,
