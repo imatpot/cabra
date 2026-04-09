@@ -10,7 +10,7 @@ use crate::util::ansi;
 /// The cells are indexed in rows, so in `(x, y)` notation,
 /// `(0, 0)` through `(7, 0)` are the first 8 bits,
 /// `(0, 1)` through `(7, 1)` are the next 8 bits, and so on.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Layer {
 	pub cells: u64,
 }
@@ -99,7 +99,7 @@ impl Layer {
 
 /// A Caminos bitboard consisting of 3 [`Layer`]s.
 /// Like [`Layer`], it is player-agnostic and only tracks occupied cells.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct BitBoard {
 	pub layers: [Layer; 3],
 }

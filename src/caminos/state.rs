@@ -7,7 +7,7 @@ use crate::caminos::{
 };
 
 /// The two players of a Caminos game.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Player {
 	A,
 	B,
@@ -31,7 +31,7 @@ pub enum GameResult {
 }
 
 /// Game state of a single Caminos player.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerState {
 	/// A bitboard representing the cells occupied by this player's pieces.
 	pub occupancy: BitBoard,
@@ -131,7 +131,7 @@ impl PlayerState {
 }
 
 /// Game state of a Caminos game.
-#[derive(Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct GameState {
 	/// The state of each player in the game.
 	pub players: [PlayerState; 2],

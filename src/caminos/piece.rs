@@ -1,5 +1,5 @@
 /// A Caminos piece independent of its position and orientation on the board.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Piece {
 	L,
 	T,
@@ -114,7 +114,7 @@ impl Piece {
 /// South is the face that is facing into positive Y,
 /// East is the face that is facing into positive X,
 /// West is the face that is facing into negative X.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Rotation {
 	T0,
 	T90,

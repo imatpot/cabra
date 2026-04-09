@@ -4,7 +4,7 @@ use crate::caminos::board::BitBoard;
 use crate::caminos::piece::{Piece, Rotation};
 
 /// A single placement of a piece on the board.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Placement {
 	pub piece: Piece,
 	pub rotation: Rotation,
