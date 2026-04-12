@@ -1,7 +1,7 @@
 use crate::caminos::state::{GameResult, Player};
 
 /// Defines how to assign scores to game results for a specific player.
-pub struct ScoringPolicy {
+pub struct RewardPolicy {
 	/// The score assigned to a strong win for the player.
 	pub strong_win: f64,
 
@@ -18,7 +18,7 @@ pub struct ScoringPolicy {
 	pub strong_loss: f64,
 }
 
-impl ScoringPolicy {
+impl RewardPolicy {
 	/// Returns the score corresponding to the given game result
 	/// from the perspective of the given player.
 	pub fn score(&self, result: &GameResult, player: Player) -> f64 {

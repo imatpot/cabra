@@ -7,8 +7,8 @@ pub struct Ucb1 {
 	pub exploration_constant: f64,
 }
 
-/// Determines whether a child node should be selected for exploration
-/// based on the properties of the parent, the edge, and the node itself.
+/// Defines how to compute the selection score of a child node based on
+/// its parent and the edge connecting them.
 pub trait SelectionPolicy {
 	/// Returns the selection score of the child node.
 	fn score(&self, parent: &Node, edge: &Edge, child: &Node) -> f64;

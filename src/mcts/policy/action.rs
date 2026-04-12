@@ -25,14 +25,14 @@ pub struct SecureChild {
 
 /// Determines the best move based on the properties of the child nodes
 /// of the root node.
-pub trait WinPolicy {
+pub trait ActionPolicy {
 	/// Selects the winning move from the given child nodes of the root node.
 	/// Returns `None` if there are no child nodes satisfying the criteria.
-	fn select_winner(&self, nodes: &[ReachableNode]) -> Option<&'static Placement>;
+	fn select(&self, nodes: &[ReachableNode]) -> Option<&'static Placement>;
 }
 
-impl WinPolicy for MaxChild {
-	fn select_winner<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
+impl ActionPolicy for MaxChild {
+	fn select<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
 		nodes
 			.iter()
 			.max_by(|(_, a), (_, b)| {
@@ -43,8 +43,8 @@ impl WinPolicy for MaxChild {
 	}
 }
 
-impl WinPolicy for RobustChild {
-	fn select_winner<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
+impl ActionPolicy for RobustChild {
+	fn select<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
 		nodes
 			.iter()
 			.max_by_key(|(_, child)| child.visits)
@@ -52,8 +52,8 @@ impl WinPolicy for RobustChild {
 	}
 }
 
-impl WinPolicy for MaxRobustChild {
-	fn select_winner<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
+impl ActionPolicy for MaxRobustChild {
+	fn select<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
 		nodes
 			.iter()
 			.max_by(|(_, a), (_, b)| {
@@ -65,8 +65,8 @@ impl WinPolicy for MaxRobustChild {
 	}
 }
 
-impl WinPolicy for SecureChild {
-	fn select_winner<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
+impl ActionPolicy for SecureChild {
+	fn select<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
 		nodes
 			.iter()
 			.max_by(|(_, a), (_, b)| {

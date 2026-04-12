@@ -1,7 +1,4 @@
-use std::{
-	io::{self, Write},
-	time::{Duration, Instant},
-};
+use std::io::{self, Write};
 
 use crate::{
 	caminos::{
@@ -11,11 +8,12 @@ use crate::{
 	mcts::{
 		graph::{Edge, Graph, Node, NodeId},
 		policy::{
+			action::ActionPolicy,
+			computation::ComputationalLimit,
 			expansion::{ExpansionPolicy, ExpansionPredicate},
+			reward::RewardPolicy,
 			rollout::RolloutPolicy,
-			scoring::ScoringPolicy,
 			selection::SelectionPolicy,
-			win::WinPolicy,
 		},
 	},
 	util::ansi,
@@ -31,7 +29,7 @@ pub struct MctsAgent {
 
 	/// A mapping from [`GameResult`]s to their corresponding scores
 	/// used during backpropagation.
-	pub scoring_policy: ScoringPolicy,
+	pub reward_policy: RewardPolicy,
 
 	/// Determines the score of a node during the selection phase.
 	pub selection_policy: Box<dyn SelectionPolicy>,
@@ -47,7 +45,7 @@ pub struct MctsAgent {
 	pub rollout_policy: Box<dyn RolloutPolicy>,
 
 	/// Determines the best move based on the properties of the child nodes.
-	pub win_policy: Box<dyn WinPolicy>,
+	pub action_policy: Box<dyn ActionPolicy>,
 }
 
 impl MctsAgent {
@@ -80,7 +78,7 @@ impl MctsAgent {
 		println!("iterated {iterations} times{}", ansi::RESET);
 
 		// Return the placement that leads to the best child node according to the win policy
-		self.win_policy.select_winner(
+		self.action_policy.select(
 			&self
 				.graph
 				.nodes
@@ -121,7 +119,7 @@ impl MctsAgent {
 			// so we can backpropagate the result without further exploration
 
 			let node = self.graph.nodes.get_mut(&node_id).unwrap();
-			let score = self.scoring_policy.score(&result, !node.state.next_player);
+			let score = self.reward_policy.score(&result, !node.state.next_player);
 			node.visit(score);
 
 			return result;
@@ -150,13 +148,13 @@ impl MctsAgent {
 			let result = self.rollout_policy.rollout(&child_state);
 
 			node_mut.visit(
-				self.scoring_policy
+				self.reward_policy
 					.score(&result, !node_mut.state.next_player),
 			);
 
 			// Calculate the score for the child and update the graph
 
-			let child_score = self.scoring_policy.score(&result, !child_state.next_player);
+			let child_score = self.reward_policy.score(&result, !child_state.next_player);
 			edge.visit(child_score);
 
 			node_mut.children.push(edge);
@@ -201,54 +199,16 @@ impl MctsAgent {
 			// Backpropagate the result
 
 			node_mut.visit(
-				self.scoring_policy
+				self.reward_policy
 					.score(&result, !node_mut.state.next_player),
 			);
 
 			node_mut.children[best_edge_index].visit(
-				self.scoring_policy
+				self.reward_policy
 					.score(&result, node_mut.state.next_player),
 			);
 
 			return result;
 		}
-	}
-}
-
-/// A computational limit based on a fixed number of iterations.
-pub struct IterativeComputationalLimit {
-	pub iterations: u32,
-}
-
-/// A computational limit based on a fixed duration of time.
-pub struct TemporalComputationalLimit {
-	pub duration: Duration,
-}
-
-/// A trait representing a computational limit, allowing execution of a callback
-/// until the limit is exhausted.
-pub trait ComputationalLimit {
-	/// Returns a predicate that returns `true` until the limit is exhausted.
-	fn predicate(&self) -> Box<dyn FnMut() -> bool>;
-}
-
-impl ComputationalLimit for IterativeComputationalLimit {
-	fn predicate(&self) -> Box<dyn FnMut() -> bool> {
-		let mut remaining = self.iterations;
-
-		Box::new(move || {
-			if remaining == 0 {
-				return false;
-			}
-			remaining -= 1;
-			true
-		})
-	}
-}
-
-impl ComputationalLimit for TemporalComputationalLimit {
-	fn predicate(&self) -> Box<dyn FnMut() -> bool> {
-		let deadline = Instant::now() + self.duration;
-		Box::new(move || Instant::now() < deadline)
 	}
 }
