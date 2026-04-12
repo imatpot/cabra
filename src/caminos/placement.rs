@@ -41,7 +41,7 @@ impl LegalPlacements {
 	/// Returns an iterator yielding all placements for the given piece that do
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
-	pub fn of_piece_no_overlap_no_floating(
+	pub fn of_piece_without_overlap_without_floating(
 		&self,
 		piece: &Piece,
 		board: &BitBoard,
@@ -55,20 +55,20 @@ impl LegalPlacements {
 	/// Returns an iterator yielding all placements for the given pieces that do
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
-	pub fn of_many_no_overlap_no_floating(
+	pub fn of_many_without_overlap_without_floating(
 		&self,
 		pieces: &[Piece],
 		board: &BitBoard,
 	) -> impl Iterator<Item = &Placement> {
 		pieces
 			.iter()
-			.flat_map(|piece| self.of_piece_no_overlap_no_floating(piece, board))
+			.flat_map(|piece| self.of_piece_without_overlap_without_floating(piece, board))
 	}
 
 	/// Returns an iterator yielding all combined placements that do
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
-	pub fn of_all_no_overlap_no_floating(
+	pub fn of_all_without_overlap_without_floating(
 		&self,
 		board: &BitBoard,
 	) -> impl Iterator<Item = &Placement> {
@@ -179,6 +179,7 @@ fn rotate_xyz(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
 	let (x, y, z) = point;
 
 	// Map the face
+
 	let (fx, fy, fz) = match rotation {
 		Rotation::T0 | Rotation::T90 | Rotation::T180 | Rotation::T270 => (x, y, z),
 		Rotation::B0 | Rotation::B90 | Rotation::B180 | Rotation::B270 => (x, -y, -z),
@@ -189,6 +190,7 @@ fn rotate_xyz(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
 	};
 
 	// Z-axis rotation
+
 	match rotation {
 		Rotation::T0 | Rotation::B0 | Rotation::N0 | Rotation::S0 | Rotation::E0 | Rotation::W0 => {
 			(fx, fy, fz)

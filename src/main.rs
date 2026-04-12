@@ -1,58 +1,108 @@
 #![allow(dead_code)] // TODO: remove, it's just nice to quiet down rust-analyzer
 
-use rand::seq::IndexedRandom;
-
 pub mod caminos;
 pub mod mcts;
 pub mod util;
 
-use crate::caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS};
+use std::{f64::consts::SQRT_2, time::Duration};
+
+use crate::{
+	caminos::state::{GameResult, GameState, Player},
+	mcts::{
+		agent::{IterativeComputationalLimit, MctsAgent, TemporalComputationalLimit},
+		graph::Graph,
+		policy::{
+			expansion::{ExpandAlways, ExpandRandomly},
+			rollout::RolloutRandomly,
+			scoring::ScoringPolicy,
+			selection::Ucb1,
+			win::RobustChild,
+		},
+	},
+	util::ansi,
+};
 
 fn main() {
-	println!("EMPTY\n{}", BitBoard::EMPTY);
-	println!("BOTTOM PERIMETER\n{}", BitBoard::BOTTOM_PERIMETER);
+	let mut temporal_agent = MctsAgent {
+		graph: Graph::new(),
+		computational_limit: Box::new(TemporalComputationalLimit {
+			duration: Duration::from_millis(u64::pow(2, 10)),
+		}),
+		scoring_policy: ScoringPolicy {
+			strong_win: 1.0,
+			weak_win: 0.8,
+			draw: 0.5,
+			weak_loss: -1.0,
+			strong_loss: -1.0,
+		},
+		selection_policy: Box::new(Ucb1 {
+			exploration_constant: SQRT_2,
+		}),
+		expansion_predicate: Box::new(ExpandAlways),
+		expansion_policy: Box::new(ExpandRandomly::unseeded()),
+		rollout_policy: Box::new(RolloutRandomly::unseeded()),
+		win_policy: Box::new(RobustChild),
+	};
 
-	// for p in LEGAL_PLACEMENTS.of_piece(&Piece::O).iter() {
-	// 	println!(
-	// 		"{} ({})\n{}",
-	// 		p,
-	// 		if p.board_mask.has_floating_cells() {
-	// 			"floating"
-	// 		} else {
-	// 			"legal"
-	// 		},
-	// 		p.board_mask,
-	// 	);
-	// }
+	let mut iterative_agent = MctsAgent {
+		graph: Graph::new(),
+		computational_limit: Box::new(IterativeComputationalLimit {
+			iterations: u32::pow(2, 12),
+		}),
+		scoring_policy: ScoringPolicy {
+			strong_win: 1.0,
+			weak_win: 0.8,
+			draw: 0.5,
+			weak_loss: -1.0,
+			strong_loss: -1.0,
+		},
+		selection_policy: Box::new(Ucb1 {
+			exploration_constant: SQRT_2,
+		}),
+		expansion_predicate: Box::new(ExpandAlways),
+		expansion_policy: Box::new(ExpandRandomly::unseeded()),
+		rollout_policy: Box::new(RolloutRandomly::unseeded()),
+		win_policy: Box::new(RobustChild),
+	};
 
-	let mut rng = rand::rng();
+	let mut state = GameState::EMPTY;
 
-	for _ in 0..10 {
-		let random_piece = [Piece::L, Piece::T, Piece::Z, Piece::O]
-			.choose(&mut rng)
-			.unwrap();
+	loop {
+		if let Some(result) = state.determine_winner() {
+			match result {
+				GameResult::StrongWin(Player::A) => {
+					println!("{}Player A wins strongly!{}", ansi::GREEN, ansi::RESET)
+				}
+				GameResult::WeakWin(Player::A) => {
+					println!("{}Player A wins weakly!{}", ansi::BLUE, ansi::RESET)
+				}
 
-		let random_placement = LEGAL_PLACEMENTS
-			.of_piece(&random_piece)
-			.choose(&mut rng)
-			.unwrap();
+				GameResult::StrongWin(Player::B) => {
+					println!("{}Player B wins strongly!{}", ansi::RED, ansi::RESET)
+				}
+				GameResult::WeakWin(Player::B) => {
+					println!("{}Player B wins weakly!{}", ansi::RED, ansi::RESET)
+				}
 
-		println!("{}\n{}", random_placement, random_placement.board_mask);
+				GameResult::Draw => println!("{}It's a draw!{}", ansi::YELLOW, ansi::RESET),
+			}
+
+			break;
+		}
+
+		let best_move = match state.next_player {
+			Player::A => temporal_agent.find_best_placement(&state),
+			Player::B => iterative_agent.find_best_placement(&state),
+		};
+
+		if let Some(placement) = best_move {
+			println!("Player {} places {}", state.next_player, placement);
+			state.apply_placement(placement);
+		} else {
+			println!("Game over! No valid move found");
+			break;
+		}
 	}
 
-	let a: BitBoard = [
-		0b_11000000_01111011_00001110_00000000_00000000_00000000_00000000_00000000,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-	]
-	.into();
-
-	let b: BitBoard = [
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-		0b_00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000,
-	]
-	.into();
-
-	println!("A (has bridge: {}):\n{}\nB:\n{}", a.has_bridge(&b), a, b);
+	println!("{state}");
 }

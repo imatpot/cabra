@@ -1,13 +1,16 @@
 use rand::{Rng, seq::IndexedRandom};
 
-use crate::caminos::{
-	board::BitBoard,
-	piece::Piece,
-	placement::{LEGAL_PLACEMENTS, Placement},
+use crate::{
+	caminos::{
+		board::BitBoard,
+		piece::Piece,
+		placement::{LEGAL_PLACEMENTS, Placement},
+	},
+	util::ansi,
 };
 
 /// The two players of a Caminos game.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Player {
 	A,
 	B,
@@ -18,7 +21,7 @@ pub enum Player {
 /// bottom perimeter; [`BitBoard::BOTTOM_PERIMETER`]).
 /// A win for one player automatically results in a loss for the other.
 /// The game may also end in a draw.
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GameResult {
 	/// The player has built a bridge.
 	StrongWin(Player),
@@ -65,42 +68,6 @@ impl PlayerState {
 		o_remaining: 2,
 	};
 
-	/// Returns a random piece that this player can still place and decrements
-	/// the count of that piece type.
-	/// Returns `None` if the player has no pieces left.
-	pub fn random_piece(&mut self, rng: &mut impl Rng) -> Option<Piece> {
-		let mut pieces = Vec::new();
-
-		if self.l_remaining > 0 {
-			pieces.push(Piece::L);
-		}
-
-		if self.t_remaining > 0 {
-			pieces.push(Piece::T);
-		}
-
-		if self.z_remaining > 0 {
-			pieces.push(Piece::Z);
-		}
-
-		if self.o_remaining > 0 {
-			pieces.push(Piece::O);
-		}
-
-		let piece = pieces.choose(rng);
-
-		if let Some(piece) = piece {
-			match piece {
-				Piece::L => self.l_remaining -= 1,
-				Piece::T => self.t_remaining -= 1,
-				Piece::Z => self.z_remaining -= 1,
-				Piece::O => self.o_remaining -= 1,
-			}
-		}
-
-		piece.copied()
-	}
-
 	/// Returns whether the player has any pieces left.
 	pub fn has_pieces(&self) -> bool {
 		self.l_remaining > 0 || self.t_remaining > 0 || self.z_remaining > 0 || self.o_remaining > 0
@@ -128,6 +95,12 @@ impl PlayerState {
 
 		pieces
 	}
+
+	/// Returns a random piece that this player can still place.
+	/// Returns `None` if the player has no pieces left.
+	pub fn random_piece(&mut self, rng: &mut impl Rng) -> Option<Piece> {
+		self.remaining_piece_types().choose(rng).copied()
+	}
 }
 
 /// Game state of a Caminos game.
@@ -136,11 +109,8 @@ pub struct GameState {
 	/// The state of each player in the game.
 	pub players: [PlayerState; 2],
 
-	/// The current player.
-	pub current_player: Player,
-
-	/// The ordered sequence of placements made in the game.
-	pub moves: Vec<Placement>,
+	/// The player who is to play the next move.
+	pub next_player: Player,
 }
 
 impl GameState {
@@ -148,14 +118,8 @@ impl GameState {
 	/// player 0 starting.
 	pub const EMPTY: Self = Self {
 		players: [PlayerState::EMPTY, PlayerState::EMPTY],
-		current_player: Player::A,
-		moves: Vec::new(),
+		next_player: Player::A,
 	};
-
-	/// Swaps the current player, changing the turn to the other player.
-	pub fn swap_players(&mut self) {
-		self.current_player = !self.current_player;
-	}
 
 	/// Determines the winner of the game, if any.
 	/// Returns [`Some`] if the game state can be determined,
@@ -173,13 +137,13 @@ impl GameState {
 		}
 
 		let used = a.occupancy | b.occupancy;
-		let current = match self.current_player {
+		let current = match self.next_player {
 			Player::A => a,
 			Player::B => b,
 		};
 
 		if LEGAL_PLACEMENTS
-			.of_many_no_overlap_no_floating(&current.remaining_piece_types(), &used)
+			.of_many_without_overlap_without_floating(&current.remaining_piece_types(), &used)
 			.peekable()
 			.peek()
 			.is_some()
@@ -198,6 +162,49 @@ impl GameState {
 
 		Some(GameResult::Draw)
 	}
+
+	/// Returns all legal placements for the current player.
+	pub fn legal_placements(&self) -> Vec<&'static Placement> {
+		let current_player_state = match self.next_player {
+			Player::A => self.players[0],
+			Player::B => self.players[1],
+		};
+
+		let occupied = self.players[0].occupancy | self.players[1].occupancy;
+		let remaining_types = current_player_state.remaining_piece_types();
+
+		LEGAL_PLACEMENTS
+			.of_many_without_overlap_without_floating(&remaining_types, &occupied)
+			.collect()
+	}
+
+	/// Applies a placement to the game state.
+	pub fn apply_placement(&mut self, placement: &Placement) {
+		let player = match self.next_player {
+			Player::A => &mut self.players[0],
+			Player::B => &mut self.players[1],
+		};
+
+		player.occupancy = player.occupancy | placement.board_mask;
+
+		match placement.piece {
+			Piece::L => player.l_remaining -= 1,
+			Piece::T => player.t_remaining -= 1,
+			Piece::Z => player.z_remaining -= 1,
+			Piece::O => player.o_remaining -= 1,
+		}
+
+		if !(placement.board_mask & BitBoard::BOTTOM_PERIMETER).is_empty() {
+			player.pieces_touching_bottom_edge += 1;
+		}
+
+		self.swap_players();
+	}
+
+	/// Swaps the current player, changing the turn to the other player.
+	pub fn swap_players(&mut self) {
+		self.next_player = !self.next_player;
+	}
 }
 
 // -------------------------------------------------------------------------- //
@@ -215,11 +222,47 @@ impl std::ops::Not for Player {
 	}
 }
 
-impl Into<usize> for Player {
-	fn into(self) -> usize {
+impl std::fmt::Display for Player {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Player::A => 0,
-			Player::B => 1,
+			Player::A => write!(f, "A"),
+			Player::B => write!(f, "B"),
 		}
+	}
+}
+
+impl std::fmt::Display for GameState {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		writeln!(f, "Layer 0          Layer 1          Layer 2")?;
+
+		for y in 0..8 {
+			for z in 0..3 {
+				for x in 0..8 {
+					let mut color = ansi::DIM;
+
+					let char = if self.players[0].occupancy.is_xyz_occupied(x, y, z) {
+						color = ansi::MAGENTA;
+						'█'
+					} else if self.players[1].occupancy.is_xyz_occupied(x, y, z) {
+						color = ansi::RESET;
+						'█'
+					} else if y % 2 == 0 {
+						if x % 2 == 0 { '░' } else { '▒' }
+					} else {
+						if x % 2 == 0 { '▒' } else { '░' }
+					};
+
+					write!(f, "{}{}{} ", color, char, ansi::RESET)?;
+				}
+
+				if z < 2 {
+					write!(f, " ")?;
+				}
+			}
+
+			writeln!(f)?;
+		}
+
+		Ok(())
 	}
 }

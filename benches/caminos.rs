@@ -93,7 +93,7 @@ fn bench__LegalPlacements__of_all_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_all_no_overlap_no_floating(black_box(&BitBoard::EMPTY))
+					.of_all_without_overlap_without_floating(black_box(&BitBoard::EMPTY))
 					.collect::<Vec<_>>(),
 			)
 		})
@@ -107,7 +107,7 @@ fn bench__LegalPlacements__of_piece_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_piece_no_overlap_no_floating(
+					.of_piece_without_overlap_without_floating(
 						black_box(&Piece::L),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -120,7 +120,7 @@ fn bench__LegalPlacements__of_piece_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_piece_no_overlap_no_floating(
+					.of_piece_without_overlap_without_floating(
 						black_box(&Piece::T),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -133,7 +133,7 @@ fn bench__LegalPlacements__of_piece_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_piece_no_overlap_no_floating(
+					.of_piece_without_overlap_without_floating(
 						black_box(&Piece::Z),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -146,7 +146,7 @@ fn bench__LegalPlacements__of_piece_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_piece_no_overlap_no_floating(
+					.of_piece_without_overlap_without_floating(
 						black_box(&Piece::O),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -165,7 +165,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::T]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -178,7 +178,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::T, Piece::Z]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -191,7 +191,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::T, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -204,7 +204,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::Z]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -217,7 +217,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::Z, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -230,7 +230,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::L, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -243,7 +243,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::T, Piece::Z]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -256,7 +256,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::T, Piece::Z, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -269,7 +269,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::T, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
@@ -282,7 +282,7 @@ fn bench__LegalPlacements__of_many_no_overlap_no_floating(c: &mut Criterion) {
 		b.iter(|| {
 			black_box(
 				LEGAL_PLACEMENTS
-					.of_many_no_overlap_no_floating(
+					.of_many_without_overlap_without_floating(
 						black_box(&[Piece::Z, Piece::O]),
 						black_box(&BitBoard::EMPTY),
 					)
