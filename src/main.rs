@@ -4,7 +4,11 @@ pub mod caminos;
 pub mod mcts;
 pub mod util;
 
-use std::{f64::consts::SQRT_2, time::Duration};
+use std::{
+	f64::consts::SQRT_2,
+	io::{self, Write},
+	time::Duration,
+};
 
 use crate::{
 	caminos::state::{GameResult, GameState, Player},
@@ -103,7 +107,15 @@ fn main() {
 			println!("Game over! No valid move found");
 			break;
 		}
-	}
 
-	println!("{state}");
+		println!("{state}");
+
+		if std::env::args().any(|arg| arg == "--wait") {
+			print!("Press Enter to continue...");
+			io::stdout().flush().unwrap();
+			let mut input = String::new();
+			io::stdin().read_line(&mut input).unwrap();
+			println!();
+		}
+	}
 }
