@@ -1,4 +1,9 @@
-use crate::util::ansi;
+use std::ops::BitOr;
+
+use crate::{
+	caminos::placement::{Placement, Position},
+	util::ansi,
+};
 
 /// A Caminos bitboard representing a single layer of 8x8 cells.
 /// It is player-agnostic and only tracks which cells are occupied.
@@ -465,8 +470,8 @@ impl From<(u8, u8)> for Layer {
 	}
 }
 
-impl From<(u8, u8, u8)> for BitBoard {
-	fn from(value: (u8, u8, u8)) -> Self {
+impl From<Position> for BitBoard {
+	fn from(value: Position) -> Self {
 		BitBoard::from_xyz(value.0, value.1, value.2)
 	}
 }
@@ -484,6 +489,16 @@ impl From<[u64; 3]> for BitBoard {
 impl From<[Layer; 3]> for BitBoard {
 	fn from(layers: [Layer; 3]) -> Self {
 		BitBoard::new(layers)
+	}
+}
+
+impl From<&[&'static Placement]> for BitBoard {
+	fn from(value: &[&'static Placement]) -> Self {
+		value
+			.iter()
+			.map(|p| p.board_mask)
+			.reduce(BitBoard::bitor)
+			.unwrap_or(BitBoard::EMPTY)
 	}
 }
 

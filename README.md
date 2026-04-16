@@ -169,6 +169,41 @@ The position of a piece is represented as a triple XYZ coordinate, indicating
 the position of the piece's closest cell to the origin (0, 0, 0) on the board.
 As the board is only 8x8x3 cells, no spaces are needed.
 
+## Data File Format
+
+Placement data can be stored in text files (typically ending in `.caminos`)
+in a compact text-based format.
+Each line in a file represents a single placement of four connected cells,
+in alternating turns starting with player 1.
+
+### Format Specification
+
+Each placement is encoded as exactly **12 consecutive digits**,
+representing the coordinates of four cells.
+Any non-digit characters are ignored.
+So a line can look something like this, if you want to get creative:
+
+```toml
+XYZXYZXYZXYZ
+XYZ XYZ XYZ XYZ
+x:X y:Y z:Z x:X y:Y z:Z x:X y:Y z:Z x:X y:Y z:Z   # i'm dizzy!
+```
+
+But:
+- Each group of 3 consecutive digits represents one cell's coordinates: `XYZ`
+- `X` and `Y` values must be in the range `0-7` (board size)
+- `Z` values must be in the range `0-2` (board height)
+- All 12 digits must be present on each line
+
+### Comments
+
+Lines may also include trailing comments separated by a `#` character.
+Comments could for example contain the human-readable piece notation:
+
+```toml
+120 121 122 110   # L E180 110
+```
+
 ## About Caminos
 
 Caminos is a two-player abstract strategy game played on a 3D board. Each player

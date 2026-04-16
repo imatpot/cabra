@@ -11,7 +11,11 @@ use std::{
 };
 
 use crate::{
-	caminos::state::{GameResult, GameState, Player},
+	caminos::{
+		file::ReadWriteFile,
+		placement::Placement,
+		state::{GameResult, GameState, Player},
+	},
 	mcts::{
 		agent::MctsAgent,
 		graph::Graph,
@@ -31,7 +35,7 @@ fn main() {
 	let mut temporal_agent = MctsAgent {
 		graph: Graph::new(),
 		computational_limit: Box::new(TemporalComputationalLimit {
-			duration: Duration::from_millis(u64::pow(2, 10)),
+			duration: Duration::from_millis(100),
 		}),
 		reward_policy: RewardPolicy {
 			strong_win: 1.0,
@@ -51,9 +55,7 @@ fn main() {
 
 	let mut iterative_agent = MctsAgent {
 		graph: Graph::new(),
-		computational_limit: Box::new(IterativeComputationalLimit {
-			iterations: u32::pow(2, 12),
-		}),
+		computational_limit: Box::new(IterativeComputationalLimit { iterations: 1000 }),
 		reward_policy: RewardPolicy {
 			strong_win: 1.0,
 			weak_win: 0.8,
@@ -71,6 +73,7 @@ fn main() {
 	};
 
 	let mut state = GameState::EMPTY;
+	let mut placements: Vec<&'static Placement> = Vec::new();
 
 	loop {
 		if let Some(result) = state.determine_winner() {
@@ -103,6 +106,7 @@ fn main() {
 		if let Some(placement) = best_move {
 			println!("Player {} places {}", state.next_player, placement);
 			state.apply_placement(placement);
+			placements.push(placement);
 		} else {
 			println!("Game over! No valid move found");
 			break;
@@ -118,4 +122,7 @@ fn main() {
 			println!();
 		}
 	}
+
+	let path = "result.caminos";
+	placements.write_to_path(path, true).unwrap();
 }

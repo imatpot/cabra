@@ -1,3 +1,5 @@
+use crate::caminos::placement::Position;
+
 /// A Caminos piece independent of its position and orientation on the board.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Piece {
@@ -10,7 +12,7 @@ pub enum Piece {
 impl Piece {
 	/// Returns the canonical position of the piece in its default
 	/// orientation and location; `T0 000`.
-	pub fn canonical_position(&self) -> [(u8, u8, u8); 4] {
+	pub fn canonical_position(&self) -> [Position; 4] {
 		match self {
 			// █ █ █
 			// █
@@ -183,7 +185,7 @@ impl std::fmt::Display for Rotation {
 			Rotation::W0 => write!(f, "W0"),
 			Rotation::W90 => write!(f, "W90"),
 			Rotation::W180 => write!(f, "W180"),
-			Rotation::W270 => write!(f, "W27₀"),
+			Rotation::W270 => write!(f, "W270"),
 		}
 	}
 }

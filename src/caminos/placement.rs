@@ -3,13 +3,16 @@ use std::sync::LazyLock;
 use crate::caminos::board::BitBoard;
 use crate::caminos::piece::{Piece, Rotation};
 
+pub type Position = (u8, u8, u8);
+
 /// A single placement of a piece on the board.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Placement {
 	pub piece: Piece,
 	pub rotation: Rotation,
-	pub position: (u8, u8, u8),
+	pub position: Position,
 	pub board_mask: BitBoard,
+	pub occupied_positions: [Position; 4],
 }
 
 /// Contains all legal placements for each piece type.
@@ -144,12 +147,14 @@ fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 					let position = (x_offset as u8, y_offset as u8, z_offset as u8);
 
 					let mut board_mask = BitBoard::EMPTY;
+					let mut cell_positions = [(0, 0, 0); 4];
 
-					for cell in &rotated_cells {
+					for (i, cell) in rotated_cells.iter().enumerate() {
 						let px = (cell.0 - min_x + x_offset) as u8;
 						let py = (cell.1 - min_y + y_offset) as u8;
 						let pz = (cell.2 - min_z + z_offset) as u8;
 						board_mask = board_mask | BitBoard::from_xyz(px, py, pz);
+						cell_positions[i] = (px, py, pz);
 					}
 
 					let placement = Placement {
@@ -157,6 +162,7 @@ fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 						rotation,
 						position,
 						board_mask,
+						occupied_positions: cell_positions,
 					};
 
 					if !placements
@@ -230,5 +236,25 @@ impl std::fmt::Display for Placement {
 			"{} {} {}{}{}",
 			self.piece, self.rotation, self.position.0, self.position.1, self.position.2
 		)
+	}
+}
+
+impl From<Placement> for [Position; 4] {
+	fn from(value: Placement) -> Self {
+		let mut positions = [(0, 0, 0); 4];
+		let mut idx = 0;
+
+		for i in 0..8 {
+			for j in 0..8 {
+				for k in 0..3 {
+					if value.board_mask.is_xyz_occupied(i, j, k) {
+						positions[idx] = (i, j, k);
+						idx += 1;
+					}
+				}
+			}
+		}
+
+		positions
 	}
 }

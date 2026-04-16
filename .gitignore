@@ -180,3 +180,6 @@ rust-project.json
 
 # Nix
 result
+
+# Caminos game files
+*.caminos
