@@ -1,4 +1,4 @@
-FROM rust:1.94.0-alpine AS rs
+FROM rust:1.95.0-alpine AS rs
 
 WORKDIR /app
 RUN apk add --no-cache build-base
