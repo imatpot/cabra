@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::caminos::{
-	placement::Placement,
+	placement::{Placement, PlacementRefs},
 	state::{GameResult, GameState},
 };
 
@@ -42,7 +42,7 @@ pub struct Node {
 
 	/// The placements that have not yet been explored from this node.
 	/// Shouldn't overlap with an [`Edge::placement`] from [`Node::children`].
-	pub unexplored_placements: Vec<&'static Placement>,
+	pub unexplored_placements: PlacementRefs,
 }
 
 /// An edge in the search graph,

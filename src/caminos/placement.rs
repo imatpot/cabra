@@ -3,7 +3,11 @@ use std::sync::LazyLock;
 use crate::caminos::board::BitBoard;
 use crate::caminos::piece::{Piece, Rotation};
 
+/// A coordinate on the board, represented as (x, y, z).
 pub type Position = (u8, u8, u8);
+
+/// A reference to a finite set of placements.
+pub type PlacementRefs = Vec<&'static Placement>;
 
 /// A single placement of a piece on the board.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -240,14 +244,14 @@ impl std::fmt::Display for Placement {
 }
 
 impl From<Placement> for [Position; 4] {
-	fn from(value: Placement) -> Self {
+	fn from(placement: Placement) -> Self {
 		let mut positions = [(0, 0, 0); 4];
 		let mut idx = 0;
 
 		for i in 0..8 {
 			for j in 0..8 {
 				for k in 0..3 {
-					if value.board_mask.is_xyz_occupied(i, j, k) {
+					if placement.board_mask.is_xyz_occupied(i, j, k) {
 						positions[idx] = (i, j, k);
 						idx += 1;
 					}

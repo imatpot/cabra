@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{caminos::placement::Placement, mcts::graph::Node};
+use crate::{caminos::placement::{Placement, PlacementRefs}, mcts::graph::Node};
 
 /// Expands the node in a fixed order, always taking the last unexplored move.
 pub struct ExpandInOrder;
@@ -31,17 +31,17 @@ impl ExpandRandomly {
 pub trait ExpansionPolicy {
 	/// Expands the given node and returns the placement
 	/// that led to the new child node.
-	fn expand(&mut self, moves: &mut Vec<&'static Placement>) -> &'static Placement;
+	fn expand(&mut self, moves: &mut PlacementRefs) -> &'static Placement;
 }
 
 impl ExpansionPolicy for ExpandInOrder {
-	fn expand(&mut self, nodes: &mut Vec<&'static Placement>) -> &'static Placement {
+	fn expand(&mut self, nodes: &mut PlacementRefs) -> &'static Placement {
 		nodes.pop().unwrap()
 	}
 }
 
 impl ExpansionPolicy for ExpandRandomly {
-	fn expand(&mut self, nodes: &mut Vec<&'static Placement>) -> &'static Placement {
+	fn expand(&mut self, nodes: &mut PlacementRefs) -> &'static Placement {
 		let i = self.rng.next_u64() as usize % nodes.len();
 		nodes.swap_remove(i)
 	}

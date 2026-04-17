@@ -12,8 +12,8 @@ use std::{
 
 use crate::{
 	caminos::{
-		file::ReadWriteFile,
-		placement::Placement,
+		file::{ReadFromPath, WriteToPath},
+		placement::PlacementRefs,
 		state::{GameResult, GameState, Player},
 	},
 	mcts::{
@@ -73,7 +73,7 @@ fn main() {
 	};
 
 	let mut state = GameState::EMPTY;
-	let mut placements: Vec<&'static Placement> = Vec::new();
+	let mut placements: PlacementRefs = Vec::new();
 
 	loop {
 		if let Some(result) = state.determine_winner() {
@@ -125,4 +125,6 @@ fn main() {
 
 	let path = "result.caminos";
 	placements.write_to_path(path, true).unwrap();
+	let loaded_state = GameState::read_from_path(path).unwrap();
+	println!("\nLoaded game state from {}:\n{}", path, loaded_state);
 }

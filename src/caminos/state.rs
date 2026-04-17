@@ -4,7 +4,7 @@ use crate::{
 	caminos::{
 		board::BitBoard,
 		piece::Piece,
-		placement::{LEGAL_PLACEMENTS, Placement},
+		placement::{LEGAL_PLACEMENTS, Placement, PlacementRefs},
 	},
 	util::ansi,
 };
@@ -164,7 +164,7 @@ impl GameState {
 	}
 
 	/// Returns all legal placements for the current player.
-	pub fn legal_placements(&self) -> Vec<&'static Placement> {
+	pub fn legal_placements(&self) -> PlacementRefs {
 		let current_player_state = match self.next_player {
 			Player::A => self.players[0],
 			Player::B => self.players[1],
@@ -264,5 +264,17 @@ impl std::fmt::Display for GameState {
 		}
 
 		Ok(())
+	}
+}
+
+impl From<&[&'static Placement]> for GameState {
+	fn from(placements: &[&'static Placement]) -> Self {
+		let mut state = GameState::EMPTY;
+
+		for placement in placements {
+			state.apply_placement(placement);
+		}
+
+		state
 	}
 }

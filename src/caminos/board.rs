@@ -471,17 +471,17 @@ impl From<(u8, u8)> for Layer {
 }
 
 impl From<Position> for BitBoard {
-	fn from(value: Position) -> Self {
-		BitBoard::from_xyz(value.0, value.1, value.2)
+	fn from(position: Position) -> Self {
+		BitBoard::from_xyz(position.0, position.1, position.2)
 	}
 }
 
 impl From<[u64; 3]> for BitBoard {
-	fn from(value: [u64; 3]) -> Self {
+	fn from(bits: [u64; 3]) -> Self {
 		BitBoard::new([
-			Layer::new(value[0]),
-			Layer::new(value[1]),
-			Layer::new(value[2]),
+			Layer::new(bits[0]),
+			Layer::new(bits[1]),
+			Layer::new(bits[2]),
 		])
 	}
 }
@@ -493,8 +493,8 @@ impl From<[Layer; 3]> for BitBoard {
 }
 
 impl From<&[&'static Placement]> for BitBoard {
-	fn from(value: &[&'static Placement]) -> Self {
-		value
+	fn from(placements: &[&'static Placement]) -> Self {
+		placements
 			.iter()
 			.map(|p| p.board_mask)
 			.reduce(BitBoard::bitor)

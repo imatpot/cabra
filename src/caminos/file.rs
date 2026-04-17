@@ -1,9 +1,15 @@
-use std::io::{self, Write};
+use std::{
+	fs,
+	io::{self, Write},
+};
 
-use crate::caminos::placement::{LEGAL_PLACEMENTS, Placement, Position};
+use crate::caminos::{
+	placement::{LEGAL_PLACEMENTS, Placement, PlacementRefs, Position},
+	state::GameState,
+};
 
-/// Reading from and writing/appending to files.
-pub trait ReadWriteFile: Sized {
+/// Reading from a file at a given path.
+pub trait ReadFromPath: Sized {
 	/// Reads an instance of the type from a text file at the given path.
 	/// Supports trailing comments using `#` and ignores non-digit characters.
 	///
@@ -12,7 +18,10 @@ pub trait ReadWriteFile: Sized {
 	/// any digit is out of the valid range (0-7 for x and y, 0-2 for z),
 	/// or if any resulting placement is invalid (e.g. cells not connected).
 	fn read_from_path(path: &str) -> io::Result<Self>;
+}
 
+/// Writing to a file at a given path.
+pub trait WriteToPath: Sized {
 	/// Writes the instance to a text file at the given path,
 	/// overwriting any existing file.
 	///
@@ -28,18 +37,27 @@ pub trait ReadWriteFile: Sized {
 	fn append_to_path(&self, path: &str, notation_comment: bool) -> io::Result<()>;
 }
 
-impl ReadWriteFile for Vec<&'static Placement> {
+impl ReadFromPath for GameState {
 	fn read_from_path(path: &str) -> io::Result<Self> {
-		let content = std::fs::read_to_string(path)?;
-		content
+		Ok(GameState::from(
+			PlacementRefs::read_from_path(path)?.as_slice(),
+		))
+	}
+}
+
+impl ReadFromPath for PlacementRefs {
+	fn read_from_path(path: &str) -> io::Result<Self> {
+		fs::read_to_string(path)?
 			.lines()
 			.filter(|line| !line.trim().is_empty())
 			.map(|line| Placement::try_ref_from_twelve_digits_string(line))
 			.collect()
 	}
+}
 
+impl WriteToPath for PlacementRefs {
 	fn write_to_path(&self, path: &str, notation_comment: bool) -> io::Result<()> {
-		let mut file = std::fs::File::create(path)?;
+		let mut file = fs::File::create(path)?;
 
 		for placement in self {
 			let line = if notation_comment {
@@ -62,7 +80,7 @@ impl ReadWriteFile for Vec<&'static Placement> {
 	}
 
 	fn append_to_path(&self, path: &str, notation_comment: bool) -> io::Result<()> {
-		let mut file = std::fs::OpenOptions::new()
+		let mut file = fs::OpenOptions::new()
 			.create(true)
 			.append(true)
 			.open(path)?;
