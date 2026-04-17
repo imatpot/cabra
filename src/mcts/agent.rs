@@ -24,28 +24,8 @@ pub struct MctsAgent {
 	/// The (potentially prepolulated) search graph used by this agent.
 	pub graph: Graph,
 
-	/// The computational limit for this agent.
-	pub computational_limit: Box<dyn ComputationalLimit>,
-
-	/// A mapping from [`GameResult`]s to their corresponding scores
-	/// used during backpropagation.
-	pub reward_policy: RewardPolicy,
-
-	/// Determines the score of a node during the selection phase.
-	pub selection_policy: Box<dyn SelectionPolicy>,
-
-	/// Determines whether a node should be expanded.
-	pub expansion_predicate: Box<dyn ExpansionPredicate>,
-
-	/// Determines how a node should be expanded,
-	/// i.e. which unexplored move should be taken.
-	pub expansion_policy: Box<dyn ExpansionPolicy>,
-
-	/// Simulates a full playout from the given node.
-	pub rollout_policy: Box<dyn RolloutPolicy>,
-
-	/// Determines the best move based on the properties of the child nodes.
-	pub action_policy: Box<dyn ActionPolicy>,
+	/// The configuration of the agent.
+	pub config: MctsAgentConfig,
 }
 
 impl MctsAgent {
@@ -69,7 +49,7 @@ impl MctsAgent {
 		io::stdout().flush().ok();
 
 		let mut iterations = 0;
-		let mut computational_limit_not_exhausted = self.computational_limit.predicate();
+		let mut computational_limit_not_exhausted = self.config.computational_limit.predicate();
 		while computational_limit_not_exhausted() {
 			self.iterate(&id);
 			iterations += 1;
@@ -78,7 +58,7 @@ impl MctsAgent {
 		println!("iterated {iterations} times{}", ansi::RESET);
 
 		// Return the placement that leads to the best child node according to the win policy
-		self.action_policy.select(
+		self.config.action_policy.select(
 			&self
 				.graph
 				.nodes
@@ -119,18 +99,23 @@ impl MctsAgent {
 			// so we can backpropagate the result without further exploration
 
 			let node = self.graph.nodes.get_mut(&node_id).unwrap();
-			let score = self.reward_policy.score(&result, !node.state.next_player);
+			let score = self
+				.config
+				.reward_policy
+				.score(&result, !node.state.next_player);
+
 			node.visit(score);
 
 			return result;
 		}
 
-		if self.expansion_predicate.should_expand(node_ref) {
+		if self.config.expansion_predicate.should_expand(node_ref) {
 			// The node should be expanded,
 			// so we create a new child node by taking an unexplored placement
 
 			let node_mut = self.graph.nodes.get_mut(&node_id).unwrap();
 			let expanded_placement = self
+				.config
 				.expansion_policy
 				.expand(&mut node_mut.unexplored_placements);
 
@@ -145,16 +130,21 @@ impl MctsAgent {
 
 			// Simulate a playout from the child state to get a game result
 
-			let result = self.rollout_policy.rollout(&child_state);
+			let result = self.config.rollout_policy.rollout(&child_state);
 
 			node_mut.visit(
-				self.reward_policy
+				self.config
+					.reward_policy
 					.score(&result, !node_mut.state.next_player),
 			);
 
 			// Calculate the score for the child and update the graph
 
-			let child_score = self.reward_policy.score(&result, !child_state.next_player);
+			let child_score = self
+				.config
+				.reward_policy
+				.score(&result, !child_state.next_player);
+
 			edge.visit(child_score);
 
 			node_mut.children.push(edge);
@@ -184,8 +174,8 @@ impl MctsAgent {
 				.max_by(|(_, edge_a), (_, edge_b)| {
 					let a = self.graph.nodes.get(&edge_a.child_id).unwrap();
 					let b = self.graph.nodes.get(&edge_b.child_id).unwrap();
-					let score_a = self.selection_policy.score(node_ref, edge_a, a);
-					let score_b = self.selection_policy.score(node_ref, edge_b, b);
+					let score_a = self.config.selection_policy.score(node_ref, edge_a, a);
+					let score_b = self.config.selection_policy.score(node_ref, edge_b, b);
 					score_a.total_cmp(&score_b)
 				})
 				.map(|(index, edge)| (index, edge.child_id))
@@ -199,16 +189,52 @@ impl MctsAgent {
 			// Backpropagate the result
 
 			node_mut.visit(
-				self.reward_policy
+				self.config
+					.reward_policy
 					.score(&result, !node_mut.state.next_player),
 			);
 
 			node_mut.children[best_edge_index].visit(
-				self.reward_policy
+				self.config
+					.reward_policy
 					.score(&result, node_mut.state.next_player),
 			);
 
 			return result;
 		}
 	}
+
+	pub fn new(config: MctsAgentConfig) -> Self {
+		Self {
+			graph: Graph::new(),
+			config,
+		}
+	}
+}
+
+/// The configuration of a Monte Carlo Tree Search (MCTS) agent,
+/// which determines its behavior and performance characteristics.
+pub struct MctsAgentConfig {
+	/// The computational limit for this agent.
+	pub computational_limit: Box<dyn ComputationalLimit>,
+
+	/// A mapping from [`GameResult`]s to their corresponding scores
+	/// used during backpropagation.
+	pub reward_policy: RewardPolicy,
+
+	/// Determines the score of a node during the selection phase.
+	pub selection_policy: Box<dyn SelectionPolicy>,
+
+	/// Determines whether a node should be expanded.
+	pub expansion_predicate: Box<dyn ExpansionPredicate>,
+
+	/// Determines how a node should be expanded,
+	/// i.e. which unexplored move should be taken.
+	pub expansion_policy: Box<dyn ExpansionPolicy>,
+
+	/// Simulates a full playout from the given node.
+	pub rollout_policy: Box<dyn RolloutPolicy>,
+
+	/// Determines the best move based on the properties of the child nodes.
+	pub action_policy: Box<dyn ActionPolicy>,
 }

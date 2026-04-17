@@ -17,8 +17,7 @@ use crate::{
 		state::{GameResult, GameState, Player},
 	},
 	mcts::{
-		agent::MctsAgent,
-		graph::Graph,
+		agent::{MctsAgent, MctsAgentConfig},
 		policy::{
 			action::RobustChild,
 			computation::{IterativeComputationalLimit, TemporalComputationalLimit},
@@ -32,8 +31,7 @@ use crate::{
 };
 
 fn main() {
-	let mut temporal_agent = MctsAgent {
-		graph: Graph::new(),
+	let mut temporal_agent = MctsAgent::new(MctsAgentConfig {
 		computational_limit: Box::new(TemporalComputationalLimit {
 			duration: Duration::from_millis(100),
 		}),
@@ -51,10 +49,9 @@ fn main() {
 		expansion_policy: Box::new(ExpandRandomly::unseeded()),
 		rollout_policy: Box::new(RolloutRandomly::unseeded()),
 		action_policy: Box::new(RobustChild),
-	};
+	});
 
-	let mut iterative_agent = MctsAgent {
-		graph: Graph::new(),
+	let mut iterative_agent = MctsAgent::new(MctsAgentConfig {
 		computational_limit: Box::new(IterativeComputationalLimit { iterations: 1000 }),
 		reward_policy: RewardPolicy {
 			strong_win: 1.0,
@@ -70,7 +67,7 @@ fn main() {
 		expansion_policy: Box::new(ExpandRandomly::unseeded()),
 		rollout_policy: Box::new(RolloutRandomly::unseeded()),
 		action_policy: Box::new(RobustChild),
-	};
+	});
 
 	let mut state = GameState::EMPTY;
 	let mut placements: PlacementRefs = Vec::new();
