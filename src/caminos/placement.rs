@@ -17,6 +17,7 @@ pub struct Placement {
 	pub position: Position,
 	pub board_mask: BitBoard,
 	pub occupied_positions: [Position; 4],
+	pub notation: &'static str,
 }
 
 /// Contains all legal placements for each piece type.
@@ -167,6 +168,7 @@ fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 						position,
 						board_mask,
 						occupied_positions: cell_positions,
+						notation: build_notation(piece, rotation, position).leak(),
 					};
 
 					if !placements
@@ -233,13 +235,17 @@ fn rotate_xyz(point: (i8, i8, i8), rotation: Rotation) -> (i8, i8, i8) {
 // UTILITY IMPLS                                                              //
 // -------------------------------------------------------------------------- //
 
+/// Builds a human-readable notation for a placement, e.g. "L T0 000".
+fn build_notation(piece: Piece, rotation: Rotation, position: Position) -> String {
+	format!(
+		"{} {} {}{}{}",
+		piece, rotation, position.0, position.1, position.2
+	)
+}
+
 impl std::fmt::Display for Placement {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"{} {} {}{}{}",
-			self.piece, self.rotation, self.position.0, self.position.1, self.position.2
-		)
+		write!(f, "{}", self.notation)
 	}
 }
 
