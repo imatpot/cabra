@@ -26,6 +26,13 @@
             rustc = toolchain;
           };
         };
+        waylandPkgs = with pkgs;
+          lib.optionals stdenv.isLinux [
+            wayland
+            libxkbcommon
+            mesa
+            libGL
+          ];
         treefmt = inputs.treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
           programs = {
@@ -54,10 +61,14 @@
         devShells.default = pkgs.mkShell {
           name = "cabra";
 
-          buildInputs = with pkgs; [
-            rust.toolchain
-            pkg-config
-          ];
+          buildInputs = with pkgs;
+            [
+              rust.toolchain
+              pkg-config
+            ]
+            ++ waylandPkgs;
+
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath waylandPkgs;
         };
 
         formatter = treefmt.config.build.wrapper;
