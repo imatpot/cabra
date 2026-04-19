@@ -56,6 +56,7 @@ impl MctsAgent {
 		}
 
 		println!("iterated {iterations} times{}", ansi::RESET);
+		println!("graph size: {}", self.graph.nodes.len());
 
 		// Return the placement that leads to the best child node according to the win policy
 		self.config.action_policy.select(

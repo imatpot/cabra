@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 chrono = "0.4.44"
 rand = "0.10.0"
+macroquad = "0.4.14"
 
 [dev-dependencies]
 criterion = "0.5.1" # newer versions not supported by pprof + flamegraph

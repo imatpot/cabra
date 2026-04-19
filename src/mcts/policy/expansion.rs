@@ -1,6 +1,9 @@
 use rand::Rng;
 
-use crate::{caminos::placement::{Placement, PlacementRefs}, mcts::graph::Node};
+use crate::{
+	caminos::placement::{Placement, PlacementRefs},
+	mcts::graph::Node,
+};
 
 /// Expands the node in a fixed order, always taking the last unexplored move.
 pub struct ExpandInOrder;
