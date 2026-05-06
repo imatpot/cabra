@@ -32,7 +32,7 @@ pub struct Node {
 	pub visits: u32,
 
 	/// The cumulative score of this node.
-	pub score: f64,
+	pub score: f32,
 
 	/// The edges to the child nodes.
 	pub children: Vec<Edge>,
@@ -55,7 +55,7 @@ pub struct Edge {
 	pub visits: u32,
 
 	/// The cumulative score of this edge.
-	pub score: f64,
+	pub score: f32,
 
 	/// The ID of the child node that this edge points to.
 	pub child_id: NodeId,
@@ -90,7 +90,7 @@ impl Node {
 
 	/// Updates the visit count and cumulative score of this node
 	/// based on the given score.
-	pub fn visit(&mut self, score: f64) {
+	pub fn visit(&mut self, score: f32) {
 		self.visits += 1;
 		self.score += score;
 	}
@@ -123,7 +123,7 @@ impl Node {
 impl Edge {
 	/// Updates the visit count and cumulative score of this edge
 	/// based on the given score.
-	pub fn visit(&mut self, score: f64) {
+	pub fn visit(&mut self, score: f32) {
 		self.visits += 1;
 		self.score += score;
 	}

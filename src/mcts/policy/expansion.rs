@@ -1,6 +1,9 @@
 use rand::Rng;
 
-use crate::{caminos::placement::{Placement, PlacementRefs}, mcts::graph::Node};
+use crate::{
+	caminos::placement::{Placement, PlacementRefs},
+	mcts::graph::Node,
+};
 
 /// Expands the node in a fixed order, always taking the last unexplored move.
 pub struct ExpandInOrder;
@@ -34,6 +37,12 @@ pub trait ExpansionPolicy {
 	fn expand(&mut self, moves: &mut PlacementRefs) -> &'static Placement;
 }
 
+impl Default for Box<dyn ExpansionPolicy> {
+	fn default() -> Self {
+		Box::new(ExpandRandomly::unseeded())
+	}
+}
+
 impl ExpansionPolicy for ExpandInOrder {
 	fn expand(&mut self, nodes: &mut PlacementRefs) -> &'static Placement {
 		nodes.pop().unwrap()
@@ -60,6 +69,12 @@ pub struct ExpandWhenVisited {
 pub trait ExpansionPredicate {
 	/// Returns `true` if the node should be expanded.
 	fn should_expand(&self, node: &Node) -> bool;
+}
+
+impl Default for Box<dyn ExpansionPredicate> {
+	fn default() -> Self {
+		Box::new(ExpandAlways)
+	}
 }
 
 impl ExpansionPredicate for ExpandAlways {

@@ -32,6 +32,12 @@ pub trait RolloutPolicy {
 	fn rollout(&mut self, state: &GameState) -> GameResult;
 }
 
+impl Default for Box<dyn RolloutPolicy> {
+	fn default() -> Self {
+		Box::new(RolloutRandomly::unseeded())
+	}
+}
+
 impl RolloutPolicy for RolloutRandomly {
 	fn rollout(&mut self, state: &GameState) -> GameResult {
 		let mut simulation = state.clone();

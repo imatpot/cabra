@@ -11,6 +11,7 @@ use crate::{
 			action::ActionPolicy,
 			computation::ComputationalLimit,
 			expansion::{ExpansionPolicy, ExpansionPredicate},
+			parallelization::ParallelizationPolicy,
 			reward::RewardPolicy,
 			rollout::RolloutPolicy,
 			selection::SelectionPolicy,
@@ -214,6 +215,7 @@ impl MctsAgent {
 
 /// The configuration of a Monte Carlo Tree Search (MCTS) agent,
 /// which determines its behavior and performance characteristics.
+#[derive(Default)]
 pub struct MctsAgentConfig {
 	/// The computational limit for this agent.
 	pub computational_limit: Box<dyn ComputationalLimit>,
@@ -237,4 +239,7 @@ pub struct MctsAgentConfig {
 
 	/// Determines the best move based on the properties of the child nodes.
 	pub action_policy: Box<dyn ActionPolicy>,
+
+	/// Determines how the MCTS iterations should be parallelized.
+	pub parallelization_policy: ParallelizationPolicy,
 }

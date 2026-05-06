@@ -165,6 +165,11 @@ impl GameState {
 
 	/// Returns all legal placements for the current player.
 	pub fn legal_placements(&self) -> PlacementRefs {
+		if self.determine_winner().is_some() {
+			// Game is already over, so there are no legal placements
+			return Vec::new();
+		}
+
 		let current_player_state = match self.next_player {
 			Player::A => self.players[0],
 			Player::B => self.players[1],

@@ -5,7 +5,6 @@ pub mod mcts;
 pub mod util;
 
 use std::{
-	f64::consts::SQRT_2,
 	io::{self, Write},
 	time::Duration,
 };
@@ -18,55 +17,22 @@ use crate::{
 	},
 	mcts::{
 		agent::{MctsAgent, MctsAgentConfig},
-		policy::{
-			action::RobustChild,
-			computation::{IterativeComputationalLimit, TemporalComputationalLimit},
-			expansion::{ExpandAlways, ExpandRandomly},
-			reward::RewardPolicy,
-			rollout::RolloutRandomly,
-			selection::Ucb1,
-		},
+		policy::computation::{Iterative, Temporal},
 	},
 	util::ansi,
 };
 
 fn main() {
 	let mut temporal_agent = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(TemporalComputationalLimit {
-			duration: Duration::from_millis(100),
+		computational_limit: Box::new(Temporal {
+			duration: Duration::from_secs(1),
 		}),
-		reward_policy: RewardPolicy {
-			strong_win: 1.0,
-			weak_win: 0.8,
-			draw: 0.5,
-			weak_loss: -1.0,
-			strong_loss: -1.0,
-		},
-		selection_policy: Box::new(Ucb1 {
-			exploration_constant: SQRT_2,
-		}),
-		expansion_predicate: Box::new(ExpandAlways),
-		expansion_policy: Box::new(ExpandRandomly::unseeded()),
-		rollout_policy: Box::new(RolloutRandomly::unseeded()),
-		action_policy: Box::new(RobustChild),
+		..MctsAgentConfig::default()
 	});
 
 	let mut iterative_agent = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(IterativeComputationalLimit { iterations: 1000 }),
-		reward_policy: RewardPolicy {
-			strong_win: 1.0,
-			weak_win: 0.8,
-			draw: 0.5,
-			weak_loss: -1.0,
-			strong_loss: -1.0,
-		},
-		selection_policy: Box::new(Ucb1 {
-			exploration_constant: SQRT_2,
-		}),
-		expansion_predicate: Box::new(ExpandAlways),
-		expansion_policy: Box::new(ExpandRandomly::unseeded()),
-		rollout_policy: Box::new(RolloutRandomly::unseeded()),
-		action_policy: Box::new(RobustChild),
+		computational_limit: Box::new(Iterative { iterations: 25_000 }),
+		..MctsAgentConfig::default()
 	});
 
 	let mut state = GameState::EMPTY;

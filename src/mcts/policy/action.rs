@@ -20,7 +20,7 @@ pub struct MaxRobustChild;
 /// Select the child which maximizes an upper confidence bound on the win rate.
 pub struct SecureChild {
 	/// Scales the confidence bonus. Higher values favor nodes with few visits.
-	security_constant: f64,
+	security_constant: f32,
 }
 
 /// Determines the best move based on the properties of the child nodes
@@ -31,12 +31,18 @@ pub trait ActionPolicy {
 	fn select(&self, nodes: &[ReachableNode]) -> Option<&'static Placement>;
 }
 
+impl Default for Box<dyn ActionPolicy> {
+	fn default() -> Self {
+		Box::new(RobustChild)
+	}
+}
+
 impl ActionPolicy for MaxChild {
 	fn select<'a>(&self, nodes: &[ReachableNode]) -> Option<&'static Placement> {
 		nodes
 			.iter()
 			.max_by(|(_, a), (_, b)| {
-				let q = |n: &Node| n.score / (n.visits + 1) as f64;
+				let q = |n: &Node| n.score / (n.visits + 1) as f32;
 				q(a).total_cmp(&q(b))
 			})
 			.map(|(edge, _)| edge.placement)
@@ -71,8 +77,8 @@ impl ActionPolicy for SecureChild {
 			.iter()
 			.max_by(|(_, a), (_, b)| {
 				let score = |n: &Node| {
-					let q = n.score / (n.visits + 1) as f64;
-					let bonus = self.security_constant / ((n.visits + 1) as f64).sqrt();
+					let q = n.score / (n.visits + 1) as f32;
+					let bonus = self.security_constant / ((n.visits + 1) as f32).sqrt();
 					q + bonus
 				};
 
