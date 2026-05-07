@@ -1,7 +1,10 @@
 use std::{
 	collections::HashMap,
 	hash::{DefaultHasher, Hash, Hasher},
+	ops::Deref,
 };
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::caminos::{
 	placement::{Placement, PlacementRefs},
@@ -15,7 +18,7 @@ pub type NodeId = u64;
 /// A directed, acyclic graph representing the explored game tree.
 pub struct Graph {
 	/// Maps node IDs to their corresponding nodes.
-	pub nodes: HashMap<NodeId, Node>,
+	pub nodes: FxHashMap<NodeId, Node>,
 }
 
 /// A node in the search graph,
@@ -38,7 +41,7 @@ pub struct Node {
 	pub children: Vec<Edge>,
 
 	/// The IDs of the parent nodes.
-	pub parents: Vec<NodeId>,
+	pub parents: FxHashSet<NodeId>,
 
 	/// The placements that have not yet been explored from this node.
 	/// Shouldn't overlap with an [`Edge::placement`] from [`Node::children`].
@@ -65,7 +68,7 @@ impl Graph {
 	/// Creates a new graph with a single root node
 	/// representing the empty game state.
 	pub fn new() -> Self {
-		let mut nodes = HashMap::new();
+		let mut nodes = FxHashMap::default();
 		nodes.insert(Node::root_id(), Node::new(GameState::EMPTY, &[]));
 
 		Graph { nodes }
@@ -113,7 +116,7 @@ impl Node {
 			score: 0.0,
 
 			children: Vec::new(),
-			parents: parents.into(),
+			parents: FxHashSet::from_iter(parents.iter().copied()),
 
 			unexplored_placements,
 		}
