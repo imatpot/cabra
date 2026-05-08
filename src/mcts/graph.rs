@@ -1,8 +1,4 @@
-use std::{
-	collections::HashMap,
-	hash::{DefaultHasher, Hash, Hasher},
-	ops::Deref,
-};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -14,6 +10,9 @@ use crate::caminos::{
 /// Identifies a node in the DAG.
 /// Calculated as [`GameState::hash`] from [`Node::state`].
 pub type NodeId = u64;
+
+/// Identifies the edge from a parent node to a child node.
+pub type EdgeIndex = usize;
 
 /// A directed, acyclic graph representing the explored game tree.
 pub struct Graph {
@@ -69,7 +68,7 @@ impl Graph {
 	/// representing the empty game state.
 	pub fn new() -> Self {
 		let mut nodes = FxHashMap::default();
-		nodes.insert(Node::root_id(), Node::new(GameState::EMPTY, &[]));
+		nodes.insert(Node::root_id(), Node::new(GameState::EMPTY));
 
 		Graph { nodes }
 	}
@@ -99,7 +98,7 @@ impl Node {
 	}
 
 	/// Creates a new node with the given game state and parent IDs.
-	pub fn new(state: GameState, parents: &[NodeId]) -> Self {
+	pub fn new(state: GameState) -> Self {
 		let result = state.determine_winner();
 
 		let unexplored_placements = if result.is_some() {
@@ -116,7 +115,7 @@ impl Node {
 			score: 0.0,
 
 			children: Vec::new(),
-			parents: FxHashSet::from_iter(parents.iter().copied()),
+			parents: FxHashSet::default(),
 
 			unexplored_placements,
 		}

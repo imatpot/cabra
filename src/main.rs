@@ -4,10 +4,7 @@ pub mod caminos;
 pub mod mcts;
 pub mod util;
 
-use std::{
-	io::{self, Write},
-	time::Duration,
-};
+use std::io::{self, Write};
 
 use crate::{
 	caminos::{
@@ -17,20 +14,18 @@ use crate::{
 	},
 	mcts::{
 		agent::{MctsAgent, MctsAgentConfig},
-		policy::computation::{Iterative, Temporal},
+		policy::computation::Iterative,
 	},
 	util::ansi,
 };
 
 fn main() {
-	let mut temporal_agent = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(Temporal {
-			duration: Duration::from_secs(1),
-		}),
+	let mut alice = MctsAgent::new(MctsAgentConfig {
+		computational_limit: Box::new(Iterative { iterations: 25_000 }),
 		..MctsAgentConfig::default()
 	});
 
-	let mut iterative_agent = MctsAgent::new(MctsAgentConfig {
+	let mut bob = MctsAgent::new(MctsAgentConfig {
 		computational_limit: Box::new(Iterative { iterations: 25_000 }),
 		..MctsAgentConfig::default()
 	});
@@ -61,13 +56,13 @@ fn main() {
 			break;
 		}
 
-		let best_move = match state.next_player {
-			Player::A => temporal_agent.find_best_placement(&state),
-			Player::B => iterative_agent.find_best_placement(&state),
+		let best_move = match state.next_player() {
+			Player::A => alice.search_best_placement(&state),
+			Player::B => bob.search_best_placement(&state),
 		};
 
 		if let Some(placement) = best_move {
-			println!("Player {} places {}", state.next_player, placement);
+			println!("Player {} places {}", state.next_player(), placement);
 			state.apply_placement(placement);
 			placements.push(placement);
 		} else {

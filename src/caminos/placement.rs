@@ -10,7 +10,7 @@ pub type Position = (u8, u8, u8);
 pub type PlacementRefs = Vec<&'static Placement>;
 
 /// A single placement of a piece on the board.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Placement {
 	pub piece: Piece,
 	pub rotation: Rotation,

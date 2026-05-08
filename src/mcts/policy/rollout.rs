@@ -62,11 +62,15 @@ pub struct RolloutResult {
 impl RolloutPolicy for RolloutRandomly {
 	fn rollout(&self, state: &GameState) -> RolloutResult {
 		// This is really cool.
+		//
 		// By using a combination of a fixed seed and an atomic counter to set
 		// the stream of the ChaCha8Rng, we can ensure that each rollout
 		// produces a different sequence of random numbers, even when
 		// parallelized, while keeping reproducibility when using the same
 		// initial seed!
+		//
+		// Taken/inspired by this one:
+		// https://github.com/rust-random/rand/blob/31cd3326034525acb06e1616487ef3c41c7acab0/examples/rayon-monte-carlo.rs
 
 		let mut rng = ChaCha8Rng::seed_from_u64(self.rng_seed);
 		rng.set_stream(self.rng_counter.fetch_add(1, Ordering::Relaxed));

@@ -1,19 +1,16 @@
 use std::io::{self, Write};
 
 use crate::{
-	caminos::{
-		placement::Placement,
-		state::{GameResult, GameState},
-	},
+	caminos::{placement::Placement, state::GameState},
 	mcts::{
-		graph::{Edge, Graph, Node, NodeId},
+		graph::{Edge, EdgeIndex, Graph, Node, NodeId},
 		policy::{
 			action::ActionPolicy,
 			computation::ComputationalLimit,
 			expansion::{ExpansionPolicy, ExpansionPredicate},
 			parallelization::ParallelizationPolicy,
 			reward::RewardPolicy,
-			rollout::RolloutPolicy,
+			rollout::{RolloutPolicy, RolloutResult},
 			selection::SelectionPolicy,
 		},
 	},
@@ -27,19 +24,25 @@ pub struct MctsAgent {
 
 	/// The configuration of the agent.
 	pub config: MctsAgentConfig,
+
+	/// The number of threads to use for rollouts.
+	rollout_threads: u8,
+
+	/// TODO: i know what this is but dunno how to describe it
+	root_threads: u8,
 }
 
 impl MctsAgent {
 	/// Finds the best next placement for the given game state
 	/// using Monte Carlo Tree Search.
-	pub fn find_best_placement(&mut self, origin: &GameState) -> Option<&'static Placement> {
+	pub fn search_best_placement(&mut self, origin: &GameState) -> Option<&'static Placement> {
 		let id = origin.as_node_id();
 
 		if self
 			.graph
 			.nodes
 			.entry(id)
-			.or_insert_with(|| Node::new(origin.clone(), &[]))
+			.or_insert_with(|| Node::new(origin.clone()))
 			.is_terminal()
 		{
 			// No placement can be made from a terminal state
@@ -52,7 +55,7 @@ impl MctsAgent {
 		let mut iterations = 0;
 		let mut computational_limit_not_exhausted = self.config.computational_limit.predicate();
 		while computational_limit_not_exhausted() {
-			self.iterate(&id);
+			self.iterate(id);
 			iterations += 1;
 		}
 
@@ -72,143 +75,160 @@ impl MctsAgent {
 		)
 	}
 
-	/// Performs one iteration of the Monte Carlo Tree Search algorithm,
-	/// starting from the node with the given ID.
+	/// Performs a single MCTS iteration, starting from the given node ID.
 	/// It consists of the following steps:
 	///
-	/// 1. Selection: Starting from the root, recursively select child nodes
-	///    according to the selection policy until a leaf node is reached.
+	/// 1. Selection: Starting from the active game state as the root,
+	///    recursively select attractive child nodes until reaching a leaf node.
 	///
-	/// 2. Expansion: If the leaf node is not terminal and should be expanded
-	///    according to the expansion predicate, expand it by adding a new
+	/// 2. Expansion: If the leaf node is not terminal and should be expanded, expand it by adding a new
 	///    child node corresponding to an unexplored move.
 	///
-	/// 3. Simulation: Simulate a full playout from the new child node using
-	///    the rollout policy to obtain a game result.
+	/// 3. Simulation: Roll out a full game from the new child node.
+	///    This samples a possible future trajectory of the game and its result,
+	///    which is used to evaluate the new child node.
 	///
 	/// 4. Backpropagation: Update the visit counts and scores of all nodes
 	///    and edges along the path from the new child node back to the root
 	///    based on the game result and the scoring policy.
-	fn iterate(&mut self, node_id: &NodeId) -> GameResult {
-		// This function re-fetches the node multiple times.
-		// This was done to avoid mut and non-mut re-borrowing issues.
+	fn iterate(&mut self, origin_id: NodeId) {
+		let (leaf_id, mut path) = self.select(origin_id);
 
-		let node_ref = self.graph.nodes.get(&node_id).unwrap();
+		let (rollout_node_id, rollout) = match self.expand(&leaf_id) {
+			Some((edge_index, child_id, child_state)) => {
+				path.push((leaf_id, edge_index));
+				(child_id, self.rollout(&child_state))
+			}
+			None => {
+				// Terminal node; no rollout required
+				let result = self.graph.nodes.get(&leaf_id).unwrap().result.unwrap();
+				(leaf_id, RolloutResult { result, depth: 0 })
+			}
+		};
 
-		if let Some(result) = node_ref.result {
-			// The node is terminal,
-			// so we can backpropagate the result without further exploration
+		self.backpropagate(&path, &rollout_node_id, &rollout);
+	}
 
-			let node = self.graph.nodes.get_mut(&node_id).unwrap();
-			let score = self
-				.config
-				.reward_policy
-				.score(&result, !node.state.next_player);
+	/// Selects a leaf node to expand, starting from the given origin node ID.
+	fn select(&self, origin_id: NodeId) -> (NodeId, Vec<MctsSelection>) {
+		let mut path = Vec::<MctsSelection>::new();
+		let mut current_id = origin_id;
 
-			node.visit(score);
+		loop {
+			let node = self.graph.nodes.get(&current_id).unwrap();
 
-			return result;
-		}
-
-		if self.config.expansion_predicate.should_expand(node_ref) {
-			// The node should be expanded,
-			// so we create a new child node by taking an unexplored placement
-
-			let node_mut = self.graph.nodes.get_mut(&node_id).unwrap();
-			let expanded_placement = self
-				.config
-				.expansion_policy
-				.expand(&mut node_mut.unexplored_placements);
-
-			// Get the child state by applying the expanded placement
-
-			let mut child_state = node_mut.state.clone();
-			child_state.apply_placement(expanded_placement);
-
-			let child_id = child_state.as_node_id();
-
-			let mut edge = Edge::new(expanded_placement, child_id);
-
-			// Simulate a playout from the child state to get a game result
-
-			let result = self.config.rollout_policy.rollout(&child_state);
-
-			node_mut.visit(
-				self.config
-					.reward_policy
-					.score(&result, !node_mut.state.next_player),
-			);
-
-			// Calculate the score for the child and update the graph
-
-			let child_score = self
-				.config
-				.reward_policy
-				.score(&result, !child_state.next_player);
-
-			edge.visit(child_score);
-
-			node_mut.children.push(edge);
-
-			let child = self
-				.graph
-				.nodes
-				.entry(child_id)
-				.or_insert_with(|| Node::new(child_state, &[]));
-
-			child.visit(child_score);
-
-			if !child.parents.contains(node_id) {
-				// New, unseen parent-child connection
-				child.parents.push(*node_id);
+			if node.is_terminal() || self.config.expansion_predicate.should_expand(node) {
+				return (current_id, path);
 			}
 
-			return result;
-		} else {
-			// The node should not be expanded,
-			// so we select the best child node according to the selection policy
-
-			let (best_edge_index, best_child_id) = node_ref
+			let (best_edge_to_child, best_child_id) = node
 				.children
 				.iter()
 				.enumerate()
-				.max_by(|(_, edge_a), (_, edge_b)| {
-					let a = self.graph.nodes.get(&edge_a.child_id).unwrap();
-					let b = self.graph.nodes.get(&edge_b.child_id).unwrap();
-					let score_a = self.config.selection_policy.score(node_ref, edge_a, a);
-					let score_b = self.config.selection_policy.score(node_ref, edge_b, b);
+				.max_by(|(_, edge_to_a), (_, edge_to_b)| {
+					let a = self.graph.nodes.get(&edge_to_a.child_id).unwrap();
+					let b = self.graph.nodes.get(&edge_to_b.child_id).unwrap();
+					let score_a = self.config.selection_policy.score(node, edge_to_a, a);
+					let score_b = self.config.selection_policy.score(node, edge_to_b, b);
 					score_a.total_cmp(&score_b)
 				})
-				.map(|(index, edge)| (index, edge.child_id))
+				.map(|(i, e)| (i, e.child_id))
 				.unwrap();
 
-			// Recursively iterate on the best child node to get a game result
-
-			let result = self.iterate(&best_child_id);
-			let node_mut = self.graph.nodes.get_mut(&node_id).unwrap();
-
-			// Backpropagate the result
-
-			node_mut.visit(
-				self.config
-					.reward_policy
-					.score(&result, !node_mut.state.next_player),
-			);
-
-			node_mut.children[best_edge_index].visit(
-				self.config
-					.reward_policy
-					.score(&result, node_mut.state.next_player),
-			);
-
-			return result;
+			path.push((current_id, best_edge_to_child));
+			current_id = best_child_id;
 		}
 	}
 
+	/// Expands the given node by adding a new, unexplored child node.
+	fn expand(&mut self, node_id: &NodeId) -> Option<MctsExpansion> {
+		let node = self.graph.nodes.get_mut(&node_id).unwrap();
+
+		if !self.config.expansion_predicate.should_expand(&node) {
+			return None;
+		}
+
+		let placement = self
+			.config
+			.expansion_policy
+			.expand(&mut node.unexplored_placements);
+
+		let mut child_state = node.state;
+		child_state.apply_placement(placement);
+		let child_id = child_state.as_node_id();
+
+		node.children.push(Edge::new(placement, child_id));
+		let edge_index = node.children.len() - 1;
+
+		let child = self
+			.graph
+			.nodes
+			.entry(child_id)
+			.or_insert(Node::new(child_state.clone()));
+
+		child.parents.insert(*node_id);
+
+		Some((edge_index, child_id, child_state))
+	}
+
+	/// Run a single rollout.
+	fn rollout(&self, state: &GameState) -> RolloutResult {
+		self.config.rollout_policy.rollout(state)
+	}
+
+	/// Backpropagates the result of a rollout through the path from the given
+	/// terminal node ID to the root, updating the visit counts and scores of
+	/// all nodes and edges along the path.
+	fn backpropagate(
+		&mut self,
+		path: &[MctsSelection],
+		terminal_id: &NodeId,
+		rollout: &RolloutResult,
+	) {
+		// Yes, I "back"propagate from the top down instead of bottom up.
+		// This way, I don't need to reverse the path order though!
+
+		for &(node_id, edge_index) in path.iter() {
+			let node = self.graph.nodes.get_mut(&node_id).unwrap();
+
+			let node_score = Self::node_score(&self.config.reward_policy, &node, &rollout);
+			let edge_score = Self::edge_score(&self.config.reward_policy, &node, &rollout);
+
+			node.visit(node_score);
+			node.children[edge_index].score += edge_score;
+		}
+
+		let terminal = self.graph.nodes.get_mut(&terminal_id).unwrap();
+		let terminal_score = Self::node_score(&self.config.reward_policy, &terminal, &rollout);
+		terminal.visit(terminal_score);
+	}
+
+	/// Score from the perspective of the player who moved to this node.
+	fn node_score(reward_policy: &RewardPolicy, node: &Node, rollout: &RolloutResult) -> f32 {
+		reward_policy.score(&rollout.result, &rollout.depth, &node.state.last_player())
+	}
+
+	/// Score from the perspective of the player who made the edge's move.
+	fn edge_score(reward_policy: &RewardPolicy, parent: &Node, rollout: &RolloutResult) -> f32 {
+		reward_policy.score(&rollout.result, &rollout.depth, &parent.state.next_player())
+	}
+
 	pub fn new(config: MctsAgentConfig) -> Self {
+		let rollout_threads = match config.parallelization_policy {
+			ParallelizationPolicy::SingeNodeMultipleRollouts { threads } => threads,
+			ParallelizationPolicy::MultipleNodesSingleRollout { .. } => 1,
+		};
+
+		let root_threads = match config.parallelization_policy {
+			ParallelizationPolicy::SingeNodeMultipleRollouts { .. } => 1,
+			ParallelizationPolicy::MultipleNodesSingleRollout { threads } => threads,
+		};
+
 		Self {
 			graph: Graph::new(),
 			config,
+			rollout_threads,
+			root_threads,
 		}
 	}
 }
@@ -243,3 +263,12 @@ pub struct MctsAgentConfig {
 	/// Determines how the MCTS iterations should be parallelized.
 	pub parallelization_policy: ParallelizationPolicy,
 }
+
+/// Pairing of a [`NodeId`] and the used index in its [`Node::children`].
+type MctsSelection = (NodeId, EdgeIndex);
+
+/// The result of an expansion, containing
+/// the [`EdgeIndex`] of the used edge,
+/// the [`NodeId`] of the expanded child,
+/// and the expanded node's [`GameState`].
+type MctsExpansion = (EdgeIndex, NodeId, GameState);

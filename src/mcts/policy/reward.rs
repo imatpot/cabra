@@ -16,6 +16,16 @@ pub struct RewardPolicy {
 
 	/// The score assigned to a strong loss for the player.
 	pub strong_loss: f32,
+
+	/// A scaling factor applied to the score based on the depth of the rollout.
+	/// Can be used to encourage the agent to more strongly consider short
+	/// rollouts (more realistic) or long rollouts (more optimistic).
+	///
+	/// A value of `0.1` means that each additional move
+	/// increases the score by 10%, while
+	/// a value of `-0.1` means that each additional move
+	/// decreases the score by 10%.
+	pub depth_scaling: f32,
 }
 
 impl Default for RewardPolicy {
@@ -26,6 +36,7 @@ impl Default for RewardPolicy {
 			draw: 0.5,
 			weak_loss: -1.0,
 			strong_loss: -1.0,
+			depth_scaling: -0.1,
 		}
 	}
 }
@@ -33,13 +44,15 @@ impl Default for RewardPolicy {
 impl RewardPolicy {
 	/// Returns the score corresponding to the given game result
 	/// from the perspective of the given player.
-	pub fn score(&self, result: &GameResult, player: Player) -> f32 {
-		match result {
-			GameResult::StrongWin(p) if *p == player => self.strong_win,
-			GameResult::WeakWin(p) if *p == player => self.weak_win,
+	pub fn score(&self, result: &GameResult, depth: &u8, player: &Player) -> f32 {
+		let unscaled = match result {
+			GameResult::StrongWin(p) if *p == *player => self.strong_win,
+			GameResult::WeakWin(p) if *p == *player => self.weak_win,
 			GameResult::Draw => self.draw,
 			GameResult::WeakWin(_) => self.weak_loss,
 			GameResult::StrongWin(_) => self.strong_loss,
-		}
+		};
+
+		unscaled * (1.0 + self.depth_scaling * (*depth) as f32)
 	}
 }

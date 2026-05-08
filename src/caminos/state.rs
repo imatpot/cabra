@@ -104,13 +104,13 @@ impl PlayerState {
 }
 
 /// Game state of a Caminos game.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct GameState {
 	/// The state of each player in the game.
 	pub players: [PlayerState; 2],
 
 	/// The player who is to play the next move.
-	pub next_player: Player,
+	next_player: Player,
 }
 
 impl GameState {
@@ -121,12 +121,22 @@ impl GameState {
 		next_player: Player::A,
 	};
 
+	/// Returns the player who is to play the next move.
+	pub fn next_player(&self) -> Player {
+		self.next_player
+	}
+
+	/// Returns the player who played the last move.
+	pub fn last_player(&self) -> Player {
+		!self.next_player()
+	}
+
 	/// Determines the winner of the game, if any.
 	/// Returns [`Some`] if the game state can be determined,
 	/// or [`None`] if the game has not yet concluded.
 	pub fn determine_winner(&self) -> Option<GameResult> {
-		let a = self.players[0];
-		let b = self.players[1];
+		let a = &self.players[0];
+		let b = &self.players[1];
 
 		if a.occupancy.has_bridge(&b.occupancy) {
 			return Some(GameResult::StrongWin(Player::A));
@@ -171,8 +181,8 @@ impl GameState {
 		}
 
 		let current_player_state = match self.next_player {
-			Player::A => self.players[0],
-			Player::B => self.players[1],
+			Player::A => &self.players[0],
+			Player::B => &self.players[1],
 		};
 
 		let occupied = self.players[0].occupancy | self.players[1].occupancy;
