@@ -11,7 +11,7 @@ pub struct Ucb1 {
 
 /// Defines how to compute the selection score of a child node based on
 /// its parent and the edge connecting them.
-pub trait SelectionPolicy {
+pub trait SelectionPolicy: Send + Sync {
 	/// Returns the selection score of the child node.
 	fn score(&self, parent: &Node, edge: &Edge, child: &Node) -> f32;
 }

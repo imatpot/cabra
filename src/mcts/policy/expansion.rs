@@ -41,7 +41,7 @@ impl ExpandRandomly {
 }
 
 /// Determines how a node should be expanded.
-pub trait ExpansionPolicy {
+pub trait ExpansionPolicy: Send + Sync {
 	/// Expands the given node and returns the placement
 	/// that led to the new child node.
 	fn expand(&self, moves: &mut PlacementRefs) -> &'static Placement;
@@ -75,11 +75,11 @@ pub struct ExpandAlways;
 
 /// Expand the node whenever it has been visited at least `n` times.
 pub struct ExpandWhenVisited {
-	times: u32,
+	pub times: u32,
 }
 
 /// Determines whether a node should be expanded based on its properties.
-pub trait ExpansionPredicate {
+pub trait ExpansionPredicate: Send + Sync {
 	/// Returns `true` if the node should be expanded.
 	fn should_expand(&self, node: &Node) -> bool;
 }

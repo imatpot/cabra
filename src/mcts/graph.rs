@@ -72,6 +72,26 @@ impl Graph {
 
 		Graph { nodes }
 	}
+
+	/// Reroots the graph to the node with the given ID, making it the new root.
+	/// All nodes that are not reachable from the new root will be removed
+	/// from the graph.
+	pub fn reroot(&mut self, root_id: &NodeId) {
+		let mut visited = FxHashSet::default();
+		let mut stack = vec![*root_id];
+
+		while let Some(node_id) = stack.pop() {
+			if visited.insert(node_id) {
+				if let Some(node) = self.nodes.get(&node_id) {
+					for edge in &node.children {
+						stack.push(edge.child_id);
+					}
+				}
+			}
+		}
+
+		self.nodes.retain(|node_id, _| visited.contains(node_id));
+	}
 }
 
 impl Node {

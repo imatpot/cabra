@@ -65,6 +65,8 @@ fn main() {
 			println!("Player {} places {}", state.next_player(), placement);
 			state.apply_placement(placement);
 			placements.push(placement);
+			// alice.prune(&state.as_node_id());
+			// bob.prune(&state.as_node_id());
 		} else {
 			println!("Game over! No valid move found");
 			break;

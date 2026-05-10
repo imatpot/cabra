@@ -36,7 +36,7 @@ impl RolloutRandomly {
 }
 
 /// Defines how to perform a rollout (simulation) from a given game state.
-pub trait RolloutPolicy {
+pub trait RolloutPolicy: Send + Sync {
 	/// A function that simulates a playout from the given node and
 	/// returns the resulting game outcome.
 	fn rollout(&self, state: &GameState) -> RolloutResult;
@@ -49,6 +49,7 @@ impl Default for Box<dyn RolloutPolicy> {
 }
 
 /// The simulation details and result of a rollout.
+#[derive(Clone, Copy)]
 pub struct RolloutResult {
 	/// The result of the game after the rollout.
 	pub result: GameResult,
@@ -96,6 +97,27 @@ impl RolloutPolicy for RolloutRandomly {
 					simulation.apply_placement(placement)
 				}
 			}
+		}
+	}
+}
+
+/// Defines the intensity of rollouts to perform during a rollout phase, which
+/// can be used to scale the computational effort spent on rollouts compared to
+/// tree traversal and selection.
+pub struct RolloutIntensity {
+	/// The number of rollouts to perform per node during the rollout phase.
+	pub rollouts_per_node: u8,
+
+	/// The number of nodes to perform rollouts for during the rollout phase.
+	/// This can be used to perform rollouts for multiple nodes in the tree.
+	pub nodes_per_rollout: u8,
+}
+
+impl Default for RolloutIntensity {
+	fn default() -> Self {
+		Self {
+			rollouts_per_node: 1,
+			nodes_per_rollout: 1,
 		}
 	}
 }

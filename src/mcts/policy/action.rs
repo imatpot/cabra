@@ -25,7 +25,7 @@ pub struct SecureChild {
 
 /// Determines the best move based on the properties of the child nodes
 /// of the root node.
-pub trait ActionPolicy {
+pub trait ActionPolicy: Send + Sync {
 	/// Selects the winning move from the given child nodes of the root node.
 	/// Returns `None` if there are no child nodes satisfying the criteria.
 	fn select(&self, nodes: &[ReachableNode]) -> Option<&'static Placement>;

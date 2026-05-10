@@ -2,14 +2,14 @@
 /// No functions; simply a marker trait.
 pub enum ParallelizationPolicy {
 	/// Executes multiple rollouts for a single node.
-	SingeNodeMultipleRollouts { threads: u8 },
+	SingeNodeMultipleRollouts { num_rollouts: u8 },
 
 	/// Executes a single rollout for several nodes.
-	MultipleNodesSingleRollout { threads: u8 },
+	MultipleNodesSingleRollout { num_nodes: u8 },
 }
 
 impl Default for ParallelizationPolicy {
 	fn default() -> Self {
-		Self::SingeNodeMultipleRollouts { threads: 4 }
+		Self::SingeNodeMultipleRollouts { num_rollouts: 4 }
 	}
 }

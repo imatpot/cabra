@@ -1,4 +1,9 @@
-use std::io::{self, Write};
+use std::{
+	io::{self, Write},
+	time::Instant,
+};
+
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
 	caminos::{placement::Placement, state::GameState},
@@ -8,9 +13,8 @@ use crate::{
 			action::ActionPolicy,
 			computation::ComputationalLimit,
 			expansion::{ExpansionPolicy, ExpansionPredicate},
-			parallelization::ParallelizationPolicy,
 			reward::RewardPolicy,
-			rollout::{RolloutPolicy, RolloutResult},
+			rollout::{RolloutIntensity, RolloutPolicy, RolloutResult},
 			selection::SelectionPolicy,
 		},
 	},
@@ -24,17 +28,15 @@ pub struct MctsAgent {
 
 	/// The configuration of the agent.
 	pub config: MctsAgentConfig,
-
-	/// The number of threads to use for rollouts.
-	rollout_threads: u8,
-
-	/// TODO: i know what this is but dunno how to describe it
-	root_threads: u8,
 }
 
 impl MctsAgent {
 	/// Finds the best next placement for the given game state
 	/// using Monte Carlo Tree Search.
+	///
+	/// Can optionally reroot the search graph to the given game state,
+	/// saving memory for large graph but losing the ability to reuse explored
+	/// states from closer to the old root.
 	pub fn search_best_placement(&mut self, origin: &GameState) -> Option<&'static Placement> {
 		let id = origin.as_node_id();
 
@@ -52,14 +54,22 @@ impl MctsAgent {
 		print!("{}Iterating... ", ansi::DIM);
 		io::stdout().flush().ok();
 
+		let start = Instant::now();
 		let mut iterations = 0;
 		let mut computational_limit_not_exhausted = self.config.computational_limit.predicate();
+
 		while computational_limit_not_exhausted() {
 			self.iterate(id);
 			iterations += 1;
 		}
 
-		println!("iterated {iterations} times{}", ansi::RESET);
+		let elapsed = Instant::now().duration_since(start);
+
+		println!(
+			"iterated {iterations} times in {} ms{}",
+			elapsed.as_millis(),
+			ansi::RESET
+		);
 
 		// Return the placement that leads to the best child node according to the win policy
 		self.config.action_policy.select(
@@ -69,7 +79,7 @@ impl MctsAgent {
 				.get(&id)
 				.unwrap()
 				.children
-				.iter()
+				.par_iter()
 				.map(|edge| (edge, self.graph.nodes.get(&edge.child_id).unwrap()))
 				.collect::<Vec<_>>(),
 		)
@@ -81,8 +91,8 @@ impl MctsAgent {
 	/// 1. Selection: Starting from the active game state as the root,
 	///    recursively select attractive child nodes until reaching a leaf node.
 	///
-	/// 2. Expansion: If the leaf node is not terminal and should be expanded, expand it by adding a new
-	///    child node corresponding to an unexplored move.
+	/// 2. Expansion: If the leaf node is not terminal and should be expanded,
+	///    expand it by adding a new unexplored child node.
 	///
 	/// 3. Simulation: Roll out a full game from the new child node.
 	///    This samples a possible future trajectory of the game and its result,
@@ -94,19 +104,34 @@ impl MctsAgent {
 	fn iterate(&mut self, origin_id: NodeId) {
 		let (leaf_id, mut path) = self.select(origin_id);
 
-		let (rollout_node_id, rollout) = match self.expand(&leaf_id) {
-			Some((edge_index, child_id, child_state)) => {
-				path.push((leaf_id, edge_index));
-				(child_id, self.rollout(&child_state))
-			}
-			None => {
-				// Terminal node; no rollout required
-				let result = self.graph.nodes.get(&leaf_id).unwrap().result.unwrap();
-				(leaf_id, RolloutResult { result, depth: 0 })
-			}
-		};
+		if let Some((edge_index, child_id, child_state)) = self.expand(&leaf_id) {
+			path.push((leaf_id, edge_index));
 
-		self.backpropagate(&path, &rollout_node_id, &rollout);
+			let rollouts: Vec<RolloutResult> = (0..self.config.rollout_intensity.rollouts_per_node)
+				.into_par_iter()
+				.map(|_| self.rollout(&child_state))
+				.collect();
+
+			self.backpropagate(&path, &child_id, &rollouts);
+		} else {
+			let node = self.graph.nodes.get(&leaf_id).unwrap();
+
+			if let Some(result) = node.result {
+				// Node is terminal -> backpropagate immediately
+				self.backpropagate(&path, &leaf_id, &[RolloutResult { result, depth: 0 }]);
+			} else {
+				// Node not terminal but can't (yet) be expanded
+				let state = node.state.clone();
+
+				let rollouts: Vec<RolloutResult> =
+					(0..self.config.rollout_intensity.rollouts_per_node)
+						.into_par_iter()
+						.map(|_| self.rollout(&state))
+						.collect();
+
+				self.backpropagate(&path, &leaf_id, &rollouts);
+			}
+		}
 	}
 
 	/// Selects a leaf node to expand, starting from the given origin node ID.
@@ -117,7 +142,11 @@ impl MctsAgent {
 		loop {
 			let node = self.graph.nodes.get(&current_id).unwrap();
 
-			if node.is_terminal() || self.config.expansion_predicate.should_expand(node) {
+			if node.is_terminal()
+				|| node.children.is_empty()
+				|| (!node.unexplored_placements.is_empty()
+					&& self.config.expansion_predicate.should_expand(node))
+			{
 				return (current_id, path);
 			}
 
@@ -144,7 +173,9 @@ impl MctsAgent {
 	fn expand(&mut self, node_id: &NodeId) -> Option<MctsExpansion> {
 		let node = self.graph.nodes.get_mut(&node_id).unwrap();
 
-		if !self.config.expansion_predicate.should_expand(&node) {
+		if node.unexplored_placements.is_empty()
+			|| !self.config.expansion_predicate.should_expand(&node)
+		{
 			return None;
 		}
 
@@ -183,7 +214,7 @@ impl MctsAgent {
 		&mut self,
 		path: &[MctsSelection],
 		terminal_id: &NodeId,
-		rollout: &RolloutResult,
+		rollouts: &[RolloutResult],
 	) {
 		// Yes, I "back"propagate from the top down instead of bottom up.
 		// This way, I don't need to reverse the path order though!
@@ -191,15 +222,26 @@ impl MctsAgent {
 		for &(node_id, edge_index) in path.iter() {
 			let node = self.graph.nodes.get_mut(&node_id).unwrap();
 
-			let node_score = Self::node_score(&self.config.reward_policy, &node, &rollout);
-			let edge_score = Self::edge_score(&self.config.reward_policy, &node, &rollout);
+			let node_score = rollouts
+				.iter()
+				.map(|rollout| Self::node_score(&self.config.reward_policy, &node, rollout))
+				.sum::<f32>();
+
+			let edge_score = rollouts
+				.iter()
+				.map(|rollout| Self::edge_score(&self.config.reward_policy, &node, rollout))
+				.sum::<f32>();
 
 			node.visit(node_score);
 			node.children[edge_index].score += edge_score;
 		}
 
 		let terminal = self.graph.nodes.get_mut(&terminal_id).unwrap();
-		let terminal_score = Self::node_score(&self.config.reward_policy, &terminal, &rollout);
+		let terminal_score = rollouts
+			.iter()
+			.map(|rollout| Self::node_score(&self.config.reward_policy, &terminal, rollout))
+			.sum::<f32>();
+
 		terminal.visit(terminal_score);
 	}
 
@@ -213,22 +255,17 @@ impl MctsAgent {
 		reward_policy.score(&rollout.result, &rollout.depth, &parent.state.next_player())
 	}
 
+	/// Reroots the search graph to the node with the given ID,
+	/// making it the new root. All nodes that are not reachable
+	/// from the new root will be removed.
+	pub fn prune(&mut self, new_root_id: &NodeId) {
+		self.graph.reroot(new_root_id);
+	}
+
 	pub fn new(config: MctsAgentConfig) -> Self {
-		let rollout_threads = match config.parallelization_policy {
-			ParallelizationPolicy::SingeNodeMultipleRollouts { threads } => threads,
-			ParallelizationPolicy::MultipleNodesSingleRollout { .. } => 1,
-		};
-
-		let root_threads = match config.parallelization_policy {
-			ParallelizationPolicy::SingeNodeMultipleRollouts { .. } => 1,
-			ParallelizationPolicy::MultipleNodesSingleRollout { threads } => threads,
-		};
-
 		Self {
 			graph: Graph::new(),
 			config,
-			rollout_threads,
-			root_threads,
 		}
 	}
 }
@@ -257,11 +294,11 @@ pub struct MctsAgentConfig {
 	/// Simulates a full playout from the given node.
 	pub rollout_policy: Box<dyn RolloutPolicy>,
 
+	/// Determines how many rollouts to perform during each iteration.
+	pub rollout_intensity: RolloutIntensity,
+
 	/// Determines the best move based on the properties of the child nodes.
 	pub action_policy: Box<dyn ActionPolicy>,
-
-	/// Determines how the MCTS iterations should be parallelized.
-	pub parallelization_policy: ParallelizationPolicy,
 }
 
 /// Pairing of a [`NodeId`] and the used index in its [`Node::children`].

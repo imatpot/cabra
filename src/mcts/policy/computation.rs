@@ -12,7 +12,7 @@ pub struct Temporal {
 
 /// A trait representing a computational limit, allowing execution of a callback
 /// until the limit is exhausted.
-pub trait ComputationalLimit {
+pub trait ComputationalLimit: Send + Sync {
 	/// Returns a predicate that returns `true` until the limit is exhausted.
 	fn predicate(&self) -> Box<dyn FnMut() -> bool>;
 }
