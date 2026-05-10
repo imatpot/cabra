@@ -4,7 +4,8 @@ pub mod caminos;
 pub mod mcts;
 pub mod util;
 
-use std::io::{self, Write};
+use std::io::Write;
+use std::io::{self};
 
 use crate::{
 	caminos::{
@@ -14,19 +15,23 @@ use crate::{
 	},
 	mcts::{
 		agent::{MctsAgent, MctsAgentConfig},
-		policy::computation::Iterative,
+		policy::{
+			computation::Iterative,
+			rollout::{PlacementBias, RolloutPolicy},
+		},
 	},
 	util::ansi,
 };
 
 fn main() {
 	let mut alice = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(Iterative { iterations: 25_000 }),
+		computational_limit: Box::new(Iterative { iterations: 50_000 }),
+		rollout_policy: RolloutPolicy::unseeded(&[PlacementBias::TouchingOwn(1e10)]),
 		..MctsAgentConfig::default()
 	});
 
 	let mut bob = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(Iterative { iterations: 25_000 }),
+		computational_limit: Box::new(Iterative { iterations: 50_000 }),
 		..MctsAgentConfig::default()
 	});
 
@@ -65,8 +70,8 @@ fn main() {
 			println!("Player {} places {}", state.next_player(), placement);
 			state.apply_placement(placement);
 			placements.push(placement);
-			// alice.prune(&state.as_node_id());
-			// bob.prune(&state.as_node_id());
+			alice.prune(&state.as_node_id());
+			bob.prune(&state.as_node_id());
 		} else {
 			println!("Game over! No valid move found");
 			break;

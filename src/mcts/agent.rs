@@ -223,12 +223,12 @@ impl MctsAgent {
 			let node = self.graph.nodes.get_mut(&node_id).unwrap();
 
 			let node_score = rollouts
-				.iter()
+				.par_iter()
 				.map(|rollout| Self::node_score(&self.config.reward_policy, &node, rollout))
 				.sum::<f32>();
 
 			let edge_score = rollouts
-				.iter()
+				.par_iter()
 				.map(|rollout| Self::edge_score(&self.config.reward_policy, &node, rollout))
 				.sum::<f32>();
 
@@ -238,7 +238,7 @@ impl MctsAgent {
 
 		let terminal = self.graph.nodes.get_mut(&terminal_id).unwrap();
 		let terminal_score = rollouts
-			.iter()
+			.par_iter()
 			.map(|rollout| Self::node_score(&self.config.reward_policy, &terminal, rollout))
 			.sum::<f32>();
 
@@ -292,7 +292,7 @@ pub struct MctsAgentConfig {
 	pub expansion_policy: Box<dyn ExpansionPolicy>,
 
 	/// Simulates a full playout from the given node.
-	pub rollout_policy: Box<dyn RolloutPolicy>,
+	pub rollout_policy: RolloutPolicy,
 
 	/// Determines how many rollouts to perform during each iteration.
 	pub rollout_intensity: RolloutIntensity,

@@ -2,7 +2,7 @@ use rand::{Rng, seq::IndexedRandom};
 
 use crate::{
 	caminos::{
-		board::BitBoard,
+		board::{BitBoard, Layer},
 		piece::Piece,
 		placement::{LEGAL_PLACEMENTS, Placement, PlacementRefs},
 	},
@@ -219,6 +219,23 @@ impl GameState {
 	/// Swaps the current player, changing the turn to the other player.
 	pub fn swap_players(&mut self) {
 		self.next_player = !self.next_player;
+	}
+
+	/// Returns a combined top-view representation of the game state.
+	pub fn top_view(&self) -> [Layer; 2] {
+		let a = &self.players[0].occupancy;
+		let b = &self.players[1].occupancy;
+
+		let a_top = a.layers[2];
+		let b_top = a.layers[2];
+
+		let a_mid = a.layers[1] & !b_top;
+		let b_mid = b.layers[1] & !a_top;
+
+		let a_bot = a.layers[0] & !b_mid & !b_top;
+		let b_bot = b.layers[0] & !a_mid & !a_top;
+
+		[a_bot | a_mid | a_top, b_bot | b_mid | b_top]
 	}
 }
 

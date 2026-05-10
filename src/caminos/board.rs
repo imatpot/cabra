@@ -152,10 +152,30 @@ impl BitBoard {
 		(self & !Self::WEST) << 1
 	}
 
+	/// Shifts all cells up one layer (positive Z).
+	pub fn shift_up(self) -> Self {
+		Self {
+			layers: [Layer::EMPTY, self.layers[0], self.layers[1]],
+		}
+	}
+
+	/// Shifts all cells down one layer (negative Z).
+	pub fn shift_down(self) -> Self {
+		Self {
+			layers: [self.layers[1], self.layers[2], Layer::EMPTY],
+		}
+	}
+
 	/// Shifts all cells one step in all four cardinal directions.
 	/// Does not wrap around.
 	pub fn shift_cardinally(self) -> Self {
 		self.shift_north() | self.shift_east() | self.shift_south() | self.shift_west()
+	}
+
+	/// Inflates all cells one step in all six orthogonal directions.
+	/// Does not wrap around.
+	pub fn shift_orthogonally(self) -> Self {
+		self.shift_cardinally() | self.shift_up() | self.shift_down()
 	}
 
 	/// Whether the [`BitBoard`] has no occupied cells.
@@ -175,6 +195,13 @@ impl BitBoard {
 	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
 		(x < 8 && y < 8 && z < 3)
 			&& (self.layers[z as usize].cells >> Layer::bit_index_of_xy(x, y) & 1 == 1)
+	}
+
+	/// Returns the number of ones in the binary representation of `self`.
+	pub fn count_ones(&self) -> u32 {
+		self.layers[0].cells.count_ones()
+			+ self.layers[1].cells.count_ones()
+			+ self.layers[2].cells.count_ones()
 	}
 
 	/// Returns whether there is a valid bridge spanning from north to south
@@ -631,14 +658,22 @@ mod tests {
 
 	#[test]
 	fn bitboard_has_floating_cells_false() {
-		let board = BitBoard::from((1, 1, 0));
+		let board = BitBoard::from([
+			Layer::from((1, 1)),
+			Layer::from((1, 1)),
+			Layer::from((1, 1)),
+		]);
 
 		assert!(!board.has_floating_cells());
 	}
 
 	#[test]
 	fn bitboard_has_floating_cells_true() {
-		let board = BitBoard::from((1, 1, 1));
+		let board = BitBoard::from([
+			Layer::from((1, 1)),
+			Layer::from((1, 1)),
+			Layer::from((2, 2)),
+		]);
 
 		assert!(board.has_floating_cells());
 	}

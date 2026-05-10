@@ -63,7 +63,6 @@ impl ExpansionPolicy for ExpandRandomly {
 	fn expand(&self, nodes: &mut PlacementRefs) -> &'static Placement {
 		let mut rng = ChaCha8Rng::seed_from_u64(self.rng_seed);
 		rng.set_stream(self.rng_counter.fetch_add(1, Ordering::Relaxed));
-
 		let i = rng.next_u64() as usize % nodes.len();
 		nodes.swap_remove(i)
 	}

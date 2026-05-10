@@ -56,7 +56,7 @@ impl LegalPlacements {
 	) -> impl Iterator<Item = &Placement> {
 		self.of_piece(piece).iter().filter(|placement| {
 			(placement.board_mask & *board).is_empty()
-				&& !(placement.board_mask | *board).has_floating_cells()
+				&& !((placement.board_mask | *board).has_floating_cells())
 		})
 	}
 
@@ -82,7 +82,7 @@ impl LegalPlacements {
 	) -> impl Iterator<Item = &Placement> {
 		self.all().filter(|placement| {
 			(placement.board_mask & *board).is_empty()
-				&& !(placement.board_mask | *board).has_floating_cells()
+				&& !((placement.board_mask | *board).has_floating_cells())
 		})
 	}
 }
@@ -160,6 +160,11 @@ fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 						let pz = (cell.2 - min_z + z_offset) as u8;
 						board_mask = board_mask | BitBoard::from_xyz(px, py, pz);
 						cell_positions[i] = (px, py, pz);
+					}
+
+					if board_mask.layers[0].cells.count_ones() == 0 {
+						// Piece is not touching the ground -> not legal
+						continue;
 					}
 
 					let placement = Placement {
