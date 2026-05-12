@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::caminos::{
 	placement::{Placement, PlacementRefs},
-	state::{GameResult, GameState},
+	state::GameState,
 };
 
 /// Identifies a node in the DAG.
@@ -25,10 +25,6 @@ pub struct Graph {
 pub struct Node {
 	/// The game state represented by this node.
 	pub state: GameState,
-
-	/// The result of the game if this node is terminal,
-	/// or `None` if it's not terminal.
-	pub result: Option<GameResult>,
 
 	/// The number of times this node has been visited during the search.
 	pub visits: u32,
@@ -107,21 +103,19 @@ impl Node {
 
 	/// Returns `true` if this node is terminal (i.e. it has a game result).
 	pub fn is_terminal(&self) -> bool {
-		self.result.is_some()
+		self.state.result.is_some()
 	}
 
 	/// Updates the visit count and cumulative score of this node
 	/// based on the given score.
-	pub fn visit(&mut self, score: f32) {
-		self.visits += 1;
+	pub fn visit(&mut self, visits: u32, score: f32) {
+		self.visits += visits;
 		self.score += score;
 	}
 
 	/// Creates a new node with the given game state and parent IDs.
 	pub fn new(state: GameState) -> Self {
-		let result = state.determine_winner();
-
-		let unexplored_placements = if result.is_some() {
+		let unexplored_placements = if state.result.is_some() {
 			Vec::new()
 		} else {
 			state.legal_placements()
@@ -129,7 +123,6 @@ impl Node {
 
 		Self {
 			state,
-			result,
 
 			visits: 0,
 			score: 0.0,
@@ -145,8 +138,8 @@ impl Node {
 impl Edge {
 	/// Updates the visit count and cumulative score of this edge
 	/// based on the given score.
-	pub fn visit(&mut self, score: f32) {
-		self.visits += 1;
+	pub fn visit(&mut self, visits: u32, score: f32) {
+		self.visits += visits;
 		self.score += score;
 	}
 

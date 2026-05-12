@@ -48,7 +48,7 @@ impl RolloutPolicy {
 		let mut depth = 0u8;
 
 		loop {
-			if let Some(result) = simulation.determine_winner() {
+			if let Some(result) = simulation.result {
 				return RolloutResult { result, depth };
 			}
 
@@ -273,8 +273,8 @@ impl Properties for &Placement {
 
 	fn own_covered(&self, state: &GameState) -> u8 {
 		let own_occupancy = match state.next_player() {
-			Player::A => state.players[1].occupancy,
-			Player::B => state.players[0].occupancy,
+			Player::A => state.players[0].occupancy,
+			Player::B => state.players[1].occupancy,
 		};
 
 		(own_occupancy.shift_cardinally() & self.board_mask).count_ones() as u8
@@ -304,13 +304,23 @@ impl Properties for &Placement {
 	}
 
 	fn north_south_extent(&self) -> u8 {
-		let xs = self.occupied_positions.map(|(x, _, _)| x).into_iter();
-		xs.clone().max().unwrap() - xs.min().unwrap() + 1
+		let xs = self.occupied_positions.map(|(x, _, _)| x);
+
+		let (min, max) = xs
+			.into_iter()
+			.fold((u8::MAX, u8::MIN), |(min, max), x| (min.min(x), max.max(x)));
+
+		max - min + 1
 	}
 
 	fn east_west_extent(&self) -> u8 {
-		let ys = self.occupied_positions.map(|(_, y, _)| y).into_iter();
-		ys.clone().max().unwrap() - ys.min().unwrap() + 1
+		let ys = self.occupied_positions.map(|(_, y, _)| y);
+
+		let (min, max) = ys
+			.into_iter()
+			.fold((u8::MAX, u8::MIN), |(min, max), y| (min.min(y), max.max(y)));
+
+		max - min + 1
 	}
 
 	fn is_piece_type(&self, piece: &Piece) -> bool {

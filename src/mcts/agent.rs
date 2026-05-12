@@ -79,7 +79,7 @@ impl MctsAgent {
 				.get(&id)
 				.unwrap()
 				.children
-				.par_iter()
+				.iter()
 				.map(|edge| (edge, self.graph.nodes.get(&edge.child_id).unwrap()))
 				.collect::<Vec<_>>(),
 		)
@@ -116,7 +116,7 @@ impl MctsAgent {
 		} else {
 			let node = self.graph.nodes.get(&leaf_id).unwrap();
 
-			if let Some(result) = node.result {
+			if let Some(result) = node.state.result {
 				// Node is terminal -> backpropagate immediately
 				self.backpropagate(&path, &leaf_id, &[RolloutResult { result, depth: 0 }]);
 			} else {
@@ -195,7 +195,7 @@ impl MctsAgent {
 			.graph
 			.nodes
 			.entry(child_id)
-			.or_insert(Node::new(child_state.clone()));
+			.or_insert_with(|| Node::new(child_state));
 
 		child.parents.insert(*node_id);
 
@@ -219,21 +219,23 @@ impl MctsAgent {
 		// Yes, I "back"propagate from the top down instead of bottom up.
 		// This way, I don't need to reverse the path order though!
 
+		let num_rollouts = rollouts.len() as u32;
+
 		for &(node_id, edge_index) in path.iter() {
 			let node = self.graph.nodes.get_mut(&node_id).unwrap();
 
-			let node_score = rollouts
-				.par_iter()
-				.map(|rollout| Self::node_score(&self.config.reward_policy, &node, rollout))
-				.sum::<f32>();
+			let (node_score, edge_score) =
+				rollouts
+					.iter()
+					.fold((0.0, 0.0), |(node_acc, edge_acc), rollout| {
+						(
+							node_acc + Self::node_score(&self.config.reward_policy, node, rollout),
+							edge_acc + Self::edge_score(&self.config.reward_policy, node, rollout),
+						)
+					});
 
-			let edge_score = rollouts
-				.par_iter()
-				.map(|rollout| Self::edge_score(&self.config.reward_policy, &node, rollout))
-				.sum::<f32>();
-
-			node.visit(node_score);
-			node.children[edge_index].score += edge_score;
+			node.visit(num_rollouts, node_score);
+			node.children[edge_index].visit(num_rollouts, edge_score);
 		}
 
 		let terminal = self.graph.nodes.get_mut(&terminal_id).unwrap();
@@ -242,7 +244,7 @@ impl MctsAgent {
 			.map(|rollout| Self::node_score(&self.config.reward_policy, &terminal, rollout))
 			.sum::<f32>();
 
-		terminal.visit(terminal_score);
+		terminal.visit(num_rollouts, terminal_score);
 	}
 
 	/// Score from the perspective of the player who moved to this node.

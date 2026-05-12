@@ -211,7 +211,7 @@ has a set of pieces in their colour, and they take turns placing them on the
 board. The goal of Caminos is to connect two opposite sides of the board with a
 continuous path of your own pieces. The game is won by the first player to
 successfully create a path connecting their designated sides of the board. If no
-player can achieve this, the player with the least pieces touching the edge of
+player can achieve this, the player with the least pieces touching the bottommost edge of
 the board wins.
 
 The full rules of the game can be found in the

@@ -10,7 +10,7 @@ pub type Position = (u8, u8, u8);
 pub type PlacementRefs = Vec<&'static Placement>;
 
 /// A single placement of a piece on the board.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Placement {
 	pub piece: Piece,
 	pub rotation: Rotation,
@@ -256,20 +256,6 @@ impl std::fmt::Display for Placement {
 
 impl From<Placement> for [Position; 4] {
 	fn from(placement: Placement) -> Self {
-		let mut positions = [(0, 0, 0); 4];
-		let mut idx = 0;
-
-		for i in 0..8 {
-			for j in 0..8 {
-				for k in 0..3 {
-					if placement.board_mask.is_xyz_occupied(i, j, k) {
-						positions[idx] = (i, j, k);
-						idx += 1;
-					}
-				}
-			}
-		}
-
-		positions
+		placement.occupied_positions
 	}
 }

@@ -98,7 +98,7 @@ impl PlayerState {
 
 	/// Returns a random piece that this player can still place.
 	/// Returns `None` if the player has no pieces left.
-	pub fn random_piece(&mut self, rng: &mut impl Rng) -> Option<Piece> {
+	pub fn random_piece(&self, rng: &mut impl Rng) -> Option<Piece> {
 		self.remaining_piece_types().choose(rng).copied()
 	}
 }
@@ -109,6 +109,10 @@ pub struct GameState {
 	/// The state of each player in the game.
 	pub players: [PlayerState; 2],
 
+	/// The result of the game, if it has concluded.
+	/// This is `None` if the game is ongoing.
+	pub result: Option<GameResult>,
+
 	/// The player who is to play the next move.
 	next_player: Player,
 }
@@ -118,6 +122,7 @@ impl GameState {
 	/// player 0 starting.
 	pub const EMPTY: Self = Self {
 		players: [PlayerState::EMPTY, PlayerState::EMPTY],
+		result: None,
 		next_player: Player::A,
 	};
 
@@ -131,18 +136,81 @@ impl GameState {
 		!self.next_player()
 	}
 
-	/// Determines the winner of the game, if any.
-	/// Returns [`Some`] if the game state can be determined,
+	/// Returns all legal placements for the current player.
+	/// Assumes that the game is not yet over.
+	pub fn legal_placements(&self) -> PlacementRefs {
+		if self.result.is_some() {
+			// The game has concluded, so there are no more legal moves
+			return Vec::new();
+		}
+
+		let current_player_state = match self.next_player {
+			Player::A => &self.players[0],
+			Player::B => &self.players[1],
+		};
+
+		let occupied = self.players[0].occupancy | self.players[1].occupancy;
+		let remaining_types = current_player_state.remaining_piece_types();
+
+		LEGAL_PLACEMENTS
+			.of_many_without_overlap_without_floating(&remaining_types, &occupied)
+			.collect()
+	}
+
+	/// Applies a placement to the game state.
+	/// Assumes that the player has the required piece.
+	pub fn apply_placement(&mut self, placement: &Placement) {
+		let player = match self.next_player {
+			Player::A => &mut self.players[0],
+			Player::B => &mut self.players[1],
+		};
+
+		player.occupancy = player.occupancy | placement.board_mask;
+
+		match placement.piece {
+			Piece::L => player.l_remaining -= 1,
+			Piece::T => player.t_remaining -= 1,
+			Piece::Z => player.z_remaining -= 1,
+			Piece::O => player.o_remaining -= 1,
+		}
+
+		if !(placement.board_mask & BitBoard::BOTTOM_PERIMETER).is_empty() {
+			player.pieces_touching_bottom_edge += 1;
+		}
+
+		self.swap_players();
+		self.result = self.determine_winner();
+	}
+
+	/// Returns a combined top-view representation of the game state.
+	pub fn top_view(&self) -> [Layer; 2] {
+		let a = &self.players[0].occupancy;
+		let b = &self.players[1].occupancy;
+
+		let a_top = a.layers[2];
+		let b_top = b.layers[2];
+
+		let a_mid = a.layers[1] & !b_top;
+		let b_mid = b.layers[1] & !a_top;
+
+		let a_bot = a.layers[0] & !b_mid & !b_top;
+		let b_bot = b.layers[0] & !a_mid & !a_top;
+
+		[a_bot | a_mid | a_top, b_bot | b_mid | b_top]
+	}
+
+	/// Determines whether the last move concluded the game.
+	/// Returns [`Some`] if the game has concluded,
 	/// or [`None`] if the game has not yet concluded.
-	pub fn determine_winner(&self) -> Option<GameResult> {
+	fn determine_winner(&self) -> Option<GameResult> {
 		let a = &self.players[0];
 		let b = &self.players[1];
 
-		if a.occupancy.has_bridge(&b.occupancy) {
+		if self.next_player == Player::B && a.occupancy.has_bridge(&b.occupancy) {
 			return Some(GameResult::StrongWin(Player::A));
 		}
 
-		if b.occupancy.has_bridge(&a.occupancy) {
+		if self.next_player == Player::A && b.occupancy.has_bridge(&a.occupancy) {
 			return Some(GameResult::StrongWin(Player::B));
 		}
 
@@ -167,75 +235,15 @@ impl GameState {
 		}
 
 		if b.pieces_touching_bottom_edge < a.pieces_touching_bottom_edge {
-			return Some(GameResult::StrongWin(Player::B));
+			return Some(GameResult::WeakWin(Player::B));
 		}
 
 		Some(GameResult::Draw)
 	}
 
-	/// Returns all legal placements for the current player.
-	pub fn legal_placements(&self) -> PlacementRefs {
-		if self.determine_winner().is_some() {
-			// Game is already over, so there are no legal placements
-			return Vec::new();
-		}
-
-		let current_player_state = match self.next_player {
-			Player::A => &self.players[0],
-			Player::B => &self.players[1],
-		};
-
-		let occupied = self.players[0].occupancy | self.players[1].occupancy;
-		let remaining_types = current_player_state.remaining_piece_types();
-
-		LEGAL_PLACEMENTS
-			.of_many_without_overlap_without_floating(&remaining_types, &occupied)
-			.collect()
-	}
-
-	/// Applies a placement to the game state.
-	pub fn apply_placement(&mut self, placement: &Placement) {
-		let player = match self.next_player {
-			Player::A => &mut self.players[0],
-			Player::B => &mut self.players[1],
-		};
-
-		player.occupancy = player.occupancy | placement.board_mask;
-
-		match placement.piece {
-			Piece::L => player.l_remaining -= 1,
-			Piece::T => player.t_remaining -= 1,
-			Piece::Z => player.z_remaining -= 1,
-			Piece::O => player.o_remaining -= 1,
-		}
-
-		if !(placement.board_mask & BitBoard::BOTTOM_PERIMETER).is_empty() {
-			player.pieces_touching_bottom_edge += 1;
-		}
-
-		self.swap_players();
-	}
-
 	/// Swaps the current player, changing the turn to the other player.
-	pub fn swap_players(&mut self) {
+	fn swap_players(&mut self) {
 		self.next_player = !self.next_player;
-	}
-
-	/// Returns a combined top-view representation of the game state.
-	pub fn top_view(&self) -> [Layer; 2] {
-		let a = &self.players[0].occupancy;
-		let b = &self.players[1].occupancy;
-
-		let a_top = a.layers[2];
-		let b_top = a.layers[2];
-
-		let a_mid = a.layers[1] & !b_top;
-		let b_mid = b.layers[1] & !a_top;
-
-		let a_bot = a.layers[0] & !b_mid & !b_top;
-		let b_bot = b.layers[0] & !a_mid & !a_top;
-
-		[a_bot | a_mid | a_top, b_bot | b_mid | b_top]
 	}
 }
 

@@ -245,7 +245,7 @@ impl BitBoard {
 					cardinals.layers[1]
                     // Cardinally up from layer 0
                     | cardinals.layers[0]
-                    // Cardinally shifted down from layer 1
+                    // Cardinally shifted down from layer 2
                     | cardinals.layers[2]
                     // Straight up from layer 0
                     | base.layers[0]

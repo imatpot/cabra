@@ -1,8 +1,8 @@
 #![allow(dead_code)] // TODO: remove, it's just nice to quiet down rust-analyzer
 
-use std::io::{self, Write, stdin};
+use std::io::{self, Write};
 
-use rand::{Rng, rng};
+use rand::{RngExt, rng};
 
 use crate::mcts::policy::computation::Iterative;
 use crate::{
@@ -25,13 +25,13 @@ fn main() {
 
 	let mut state = GameState::EMPTY;
 
-	let human = if rng().next_u64() % 2 == 0 {
+	let human = if rng().random_bool(0.5) {
 		Player::A
 	} else {
 		Player::B
 	};
 
-	while state.determine_winner().is_none() {
+	while state.result.is_none() {
 		if state.next_player() == human {
 			human_turn(&mut state);
 		} else {
