@@ -3,10 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chacha20::ChaCha8Rng;
 use rand::{Rng, SeedableRng, rng};
 
-use crate::{
-	caminos::placement::{Placement, PlacementRefs},
-	mcts::graph::Node,
-};
+use crate::{caminos::placement::Placement, mcts::graph::Node};
 
 /// Expands the node in a fixed order, always taking the last unexplored move.
 pub struct ExpandInOrder;
@@ -44,7 +41,7 @@ impl ExpandRandomly {
 pub trait ExpansionPolicy: Send + Sync {
 	/// Expands the given node and returns the placement
 	/// that led to the new child node.
-	fn expand(&self, moves: &mut PlacementRefs) -> &'static Placement;
+	fn expand(&self, moves: &mut Vec<&'static Placement>) -> &'static Placement;
 }
 
 impl Default for Box<dyn ExpansionPolicy> {
@@ -54,13 +51,13 @@ impl Default for Box<dyn ExpansionPolicy> {
 }
 
 impl ExpansionPolicy for ExpandInOrder {
-	fn expand(&self, nodes: &mut PlacementRefs) -> &'static Placement {
+	fn expand(&self, nodes: &mut Vec<&'static Placement>) -> &'static Placement {
 		nodes.pop().unwrap()
 	}
 }
 
 impl ExpansionPolicy for ExpandRandomly {
-	fn expand(&self, nodes: &mut PlacementRefs) -> &'static Placement {
+	fn expand(&self, nodes: &mut Vec<&'static Placement>) -> &'static Placement {
 		let mut rng = ChaCha8Rng::seed_from_u64(self.rng_seed);
 		rng.set_stream(self.rng_counter.fetch_add(1, Ordering::Relaxed));
 		let i = rng.next_u64() as usize % nodes.len();

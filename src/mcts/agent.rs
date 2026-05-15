@@ -149,14 +149,17 @@ impl MctsAgent {
 				.children
 				.iter()
 				.enumerate()
-				.max_by(|(_, edge_to_a), (_, edge_to_b)| {
-					let a = self.graph.nodes.get(&edge_to_a.child_state).unwrap();
-					let b = self.graph.nodes.get(&edge_to_b.child_state).unwrap();
-					let score_a = self.config.selection_policy.score(node, edge_to_a, a);
-					let score_b = self.config.selection_policy.score(node, edge_to_b, b);
-					score_a.total_cmp(&score_b)
+				.map(|(i, edge)| {
+					let score = self.config.selection_policy.score(
+						node,
+						edge,
+						self.graph.nodes.get(&edge.child_state).unwrap(),
+					);
+
+					(i, edge.child_state, score)
 				})
-				.map(|(i, e)| (i, e.child_state))
+				.max_by(|(_, _, score_a), (_ib, _state_b, score_b)| score_a.total_cmp(score_b))
+				.map(|(i, child_state, _)| (i, child_state))
 				.unwrap();
 
 			path.push((current_id, best_edge_to_child));

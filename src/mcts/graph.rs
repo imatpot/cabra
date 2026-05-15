@@ -1,9 +1,6 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::caminos::{
-	placement::{Placement, PlacementRefs},
-	state::GameState,
-};
+use crate::caminos::{placement::Placement, state::GameState};
 
 /// Identifies the edge from a parent node to a child node.
 pub type EdgeIndex = usize;
@@ -34,7 +31,7 @@ pub struct Node {
 
 	/// The placements that have not yet been explored from this node.
 	/// Shouldn't overlap with an [`Edge::placement`] from [`Node::children`].
-	pub unexplored_placements: PlacementRefs,
+	pub unexplored_placements: Vec<&'static Placement>,
 }
 
 /// An edge in the search graph,

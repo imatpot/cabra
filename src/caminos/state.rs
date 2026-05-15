@@ -73,27 +73,16 @@ impl PlayerState {
 		self.l_remaining > 0 || self.t_remaining > 0 || self.z_remaining > 0 || self.o_remaining > 0
 	}
 
-	/// Returns a list of the piece types that this player can still place.
-	pub fn remaining_piece_types<'a>(&self) -> impl Iterator<Item = &'a Piece> {
-		let mut pieces = Vec::new();
-
-		if self.l_remaining > 0 {
-			pieces.push(&Piece::L);
-		}
-
-		if self.t_remaining > 0 {
-			pieces.push(&Piece::T);
-		}
-
-		if self.z_remaining > 0 {
-			pieces.push(&Piece::Z);
-		}
-
-		if self.o_remaining > 0 {
-			pieces.push(&Piece::O);
-		}
-
-		pieces.into_iter()
+	/// Returns the piece types that this player can still place.
+	pub fn remaining_piece_types(&self) -> impl Iterator<Item = &'static Piece> + 'static {
+		[
+			(self.l_remaining > 0).then_some(&Piece::L),
+			(self.t_remaining > 0).then_some(&Piece::T),
+			(self.z_remaining > 0).then_some(&Piece::Z),
+			(self.o_remaining > 0).then_some(&Piece::O),
+		]
+		.into_iter()
+		.flatten()
 	}
 
 	/// Returns a random piece that this player can still place.
@@ -138,7 +127,7 @@ impl GameState {
 
 	/// Returns all legal placements for the current player.
 	/// Returns an empty iterator if the game has concluded.
-	pub fn next_legal_placements(&self) -> impl Iterator<Item = &'static Placement> {
+	pub fn next_legal_placements(&self) -> impl Iterator<Item = &'static Placement> + 'static {
 		self.result
 			.is_none()
 			.then(|| {

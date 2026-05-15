@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::caminos::{
-	placement::{LEGAL_PLACEMENTS, Placement, PlacementRefs, Position},
+	placement::{LEGAL_PLACEMENTS, Placement, Position},
 	state::GameState,
 };
 
@@ -40,12 +40,12 @@ pub trait WriteToPath: Sized {
 impl ReadFromPath for GameState {
 	fn read_from_path(path: &str) -> io::Result<Self> {
 		Ok(GameState::from(
-			PlacementRefs::read_from_path(path)?.as_slice(),
+			Vec::<&'static Placement>::read_from_path(path)?.as_slice(),
 		))
 	}
 }
 
-impl ReadFromPath for PlacementRefs {
+impl ReadFromPath for Vec<&'static Placement> {
 	fn read_from_path(path: &str) -> io::Result<Self> {
 		fs::read_to_string(path)?
 			.lines()
@@ -55,7 +55,7 @@ impl ReadFromPath for PlacementRefs {
 	}
 }
 
-impl WriteToPath for PlacementRefs {
+impl WriteToPath for Vec<&'static Placement> {
 	fn write_to_path(&self, path: &str, notation_comment: bool) -> io::Result<()> {
 		let mut file = fs::File::create(path)?;
 

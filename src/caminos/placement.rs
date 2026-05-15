@@ -6,9 +6,6 @@ use crate::caminos::piece::{Piece, Rotation};
 /// A coordinate on the board, represented as (x, y, z).
 pub type Position = (u8, u8, u8);
 
-/// A reference to a finite set of placements.
-pub type PlacementRefs = Vec<&'static Placement>;
-
 /// A single placement of a piece on the board.
 #[derive(PartialEq, Eq, Hash)]
 pub struct Placement {
@@ -30,14 +27,17 @@ pub struct LegalPlacements {
 
 impl LegalPlacements {
 	/// Returns all possible placements in a single slice.
-	pub fn all(&self) -> impl Iterator<Item = &Placement> {
+	pub fn all(&'static self) -> impl Iterator<Item = &'static Placement> + 'static {
 		[&self.of_l, &self.of_t, &self.of_z, &self.of_o]
 			.into_iter()
 			.flatten()
 	}
 
 	/// Returns the slice of all possible placements for the given piece.
-	pub fn of_piece(&self, piece: Piece) -> impl Iterator<Item = &Placement> {
+	pub fn of_piece(
+		&'static self,
+		piece: Piece,
+	) -> impl Iterator<Item = &'static Placement> + 'static {
 		match piece {
 			Piece::L => &self.of_l,
 			Piece::T => &self.of_t,
@@ -51,10 +51,10 @@ impl LegalPlacements {
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
 	pub fn of_piece_without_overlap_without_floating(
-		&self,
+		&'static self,
 		piece: Piece,
 		board: BitBoard,
-	) -> impl Iterator<Item = &Placement> {
+	) -> impl Iterator<Item = &'static Placement> + 'static {
 		self.of_piece(piece).filter(move |placement| {
 			(placement.board_mask & board).is_empty()
 				&& !((placement.board_mask | board).has_floating_cells())
@@ -64,11 +64,11 @@ impl LegalPlacements {
 	/// Returns an iterator yielding all placements for the given pieces that do
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
-	pub fn of_many_without_overlap_without_floating<'s, 'p, P: Iterator<Item = &'p Piece>>(
-		&'s self,
-		pieces: P,
+	pub fn of_many_without_overlap_without_floating(
+		&'static self,
+		pieces: impl Iterator<Item = &'static Piece> + 'static,
 		board: BitBoard,
-	) -> impl Iterator<Item = &'s Placement> + use<'p, 's, P> {
+	) -> impl Iterator<Item = &'static Placement> + 'static {
 		pieces.flat_map(move |piece| self.of_piece_without_overlap_without_floating(*piece, board))
 	}
 
@@ -76,9 +76,9 @@ impl LegalPlacements {
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
 	pub fn of_all_without_overlap_without_floating(
-		&self,
+		&'static self,
 		board: BitBoard,
-	) -> impl Iterator<Item = &Placement> {
+	) -> impl Iterator<Item = &'static Placement> + 'static {
 		self.all().filter(move |placement| {
 			(placement.board_mask & board).is_empty()
 				&& !((placement.board_mask | board).has_floating_cells())
