@@ -11,10 +11,10 @@ use crate::{
 		graph::{Edge, EdgeIndex, Graph, Node},
 		policy::{
 			action::ActionPolicy,
-			computation::ComputationalLimit,
+			computation::{ComputationalIntensity, ComputationalLimit},
 			expansion::{ExpansionPolicy, ExpansionPredicate},
 			reward::RewardPolicy,
-			rollout::{RolloutIntensity, RolloutPolicy, RolloutResult},
+			rollout::{RolloutPolicy, RolloutResult},
 			selection::SelectionPolicy,
 		},
 	},
@@ -95,16 +95,17 @@ impl MctsAgent {
 	/// 4. Backpropagation: Update the visit counts and scores of all nodes
 	///    and edges along the path from the new child node back to the root
 	///    based on the game result and the scoring policy.
-	fn iterate(&mut self, origin: GameState) {
+	pub fn iterate(&mut self, origin: GameState) {
 		let (leaf_id, mut path) = self.select(origin);
 
 		if let Some((edge_index, child_state)) = self.expand(&leaf_id) {
 			path.push((leaf_id, edge_index));
 
-			let rollouts: Vec<RolloutResult> = (0..self.config.rollout_intensity.rollouts_per_node)
-				.into_par_iter()
-				.map(|_| self.rollout(&child_state))
-				.collect();
+			let rollouts: Vec<RolloutResult> =
+				(0..self.config.computational_intensity.rollouts_per_node)
+					.into_par_iter()
+					.map(|_| self.rollout(&child_state))
+					.collect();
 
 			self.backpropagate(&path, &child_state, &rollouts);
 		} else {
@@ -118,7 +119,7 @@ impl MctsAgent {
 				let state = node.state.clone();
 
 				let rollouts: Vec<RolloutResult> =
-					(0..self.config.rollout_intensity.rollouts_per_node)
+					(0..self.config.computational_intensity.rollouts_per_node)
 						.into_par_iter()
 						.map(|_| self.rollout(&state))
 						.collect();
@@ -290,7 +291,7 @@ pub struct MctsAgentConfig {
 	pub rollout_policy: RolloutPolicy,
 
 	/// Determines how many rollouts to perform during each iteration.
-	pub rollout_intensity: RolloutIntensity,
+	pub computational_intensity: ComputationalIntensity,
 
 	/// Determines the best move based on the properties of the child nodes.
 	pub action_policy: Box<dyn ActionPolicy>,

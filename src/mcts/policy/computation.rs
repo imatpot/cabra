@@ -43,3 +43,25 @@ impl ComputationalLimit for Temporal {
 		Box::new(move || Instant::now() < deadline)
 	}
 }
+
+/// Defines the intensity of rollouts to perform during a rollout phase, which
+/// can be used to scale the computational effort spent on rollouts compared to
+/// tree traversal and selection.
+pub struct ComputationalIntensity {
+	/// The number of rollouts to perform per node during the rollout phase.
+	pub rollouts_per_node: u8,
+
+	/// The number of parallel trees to search during the rollout phase.
+	/// Each tree will perform its own search, and before determining the best
+	/// move, the results of all trees will be merged.
+	pub trees: u8,
+}
+
+impl Default for ComputationalIntensity {
+	fn default() -> Self {
+		Self {
+			rollouts_per_node: 1,
+			trees: 1,
+		}
+	}
+}
