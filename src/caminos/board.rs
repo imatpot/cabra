@@ -185,11 +185,11 @@ impl BitBoard {
 
 	/// Returns if there are any occupied cells that do not have an occupied
 	/// cell directly below them, defying Caminos' gravity rules.
-	pub fn has_floating_cells(&self) -> bool {
-		let layer_2_floating = self.layers[2] & !self.layers[1];
-		let layer_1_floating = self.layers[1] & !self.layers[0];
-		!layer_2_floating.is_empty() || !layer_1_floating.is_empty()
-	}
+	// pub fn has_floating_cells(&self) -> bool {
+	// 	let layer_2_floating = self.layers[2] & !self.layers[1];
+	// 	let layer_1_floating = self.layers[1] & !self.layers[0];
+	// 	!layer_2_floating.is_empty() || !layer_1_floating.is_empty()
+	// }
 
 	/// Returns whether the `(x, y, z)` position is occupied.
 	pub fn is_xyz_occupied(&self, x: u8, y: u8, z: u8) -> bool {
@@ -207,6 +207,10 @@ impl BitBoard {
 	/// Returns whether there is a valid bridge spanning from north to south
 	/// or west to east, according to Caminos' bridging rules.
 	pub fn has_bridge(&self, other: &BitBoard) -> bool {
+		if self.count_ones() < 8 {
+			return false;
+		}
+
 		let usable: BitBoard = [
 			// Layer 0 with no opponent above them in layer 1 or layer 2
 			self.layers[0] & !other.layers[1] & !other.layers[2],
@@ -654,28 +658,6 @@ mod tests {
 			shifted,
 			BitBoard::from((0, 1, 1)) & BitBoard::from((1, 2, 2))
 		);
-	}
-
-	#[test]
-	fn bitboard_has_floating_cells_false() {
-		let board = BitBoard::from([
-			Layer::from((1, 1)),
-			Layer::from((1, 1)),
-			Layer::from((1, 1)),
-		]);
-
-		assert!(!board.has_floating_cells());
-	}
-
-	#[test]
-	fn bitboard_has_floating_cells_true() {
-		let board = BitBoard::from([
-			Layer::from((1, 1)),
-			Layer::from((1, 1)),
-			Layer::from((2, 2)),
-		]);
-
-		assert!(board.has_floating_cells());
 	}
 
 	#[test]

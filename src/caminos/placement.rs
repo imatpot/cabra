@@ -1,20 +1,61 @@
 use std::sync::LazyLock;
 
-use crate::caminos::board::BitBoard;
+use crate::caminos::board::{BitBoard, Layer};
 use crate::caminos::piece::{Piece, Rotation};
 
 /// A coordinate on the board, represented as (x, y, z).
 pub type Position = (u8, u8, u8);
 
 /// A single placement of a piece on the board.
-#[derive(PartialEq, Eq, Hash)]
 pub struct Placement {
+	/// The type of piece being placed.
 	pub piece: Piece,
+
+	/// The specific rotation of the piece in this placement
+	/// which determines how the piece's cells are oriented in 3D space.
 	pub rotation: Rotation,
+
+	/// The position of the piece's reference cell.
 	pub position: Position,
+
+	/// A bitboard mask representing the cells occupied by this piece placement
+	/// on the board.
 	pub board_mask: BitBoard,
+
+	/// The exact coordinates of the 4 cells occupied by this piece placement.
 	pub occupied_positions: [Position; 4],
+
+	/// A human-readable notation for this placement.
 	pub notation: &'static str,
+
+	/// Precomputed masks for quickly checking placement legality.
+	pub precomputations: PlacementLegalityPrecomputation,
+}
+
+impl Placement {
+	/// Checks if placing this piece on the given board would NOT result
+	/// in any floating cells.
+	pub fn not_floating_on(&self, board: &BitBoard) -> bool {
+		(self.precomputations.layer_1_floating & !board.layers[0]).is_empty()
+			&& (self.precomputations.layer_2_floating & !board.layers[1]).is_empty()
+	}
+
+	/// Checks if placing this piece on the given board would NOT overlap.
+	pub fn not_overlapping_with(&self, board: &BitBoard) -> bool {
+		(self.board_mask & *board).is_empty()
+	}
+}
+
+/// Precomputation of floating cell masks for each layer,
+/// used to quickly check if a placement introduces floating cells.
+pub struct PlacementLegalityPrecomputation {
+	/// A mask of all cells in layer 1 that would be floating if occupied
+	/// without support from layer 0.
+	pub layer_1_floating: Layer,
+
+	/// A mask of all cells in layer 2 that would be floating if occupied
+	/// without support from layer 1.
+	pub layer_2_floating: Layer,
 }
 
 /// Contains all legal placements for each piece type.
@@ -56,8 +97,7 @@ impl LegalPlacements {
 		board: BitBoard,
 	) -> impl Iterator<Item = &'static Placement> + 'static {
 		self.of_piece(piece).filter(move |placement| {
-			(placement.board_mask & board).is_empty()
-				&& !((placement.board_mask | board).has_floating_cells())
+			placement.not_overlapping_with(&board) && placement.not_floating_on(&board)
 		})
 	}
 
@@ -80,8 +120,7 @@ impl LegalPlacements {
 		board: BitBoard,
 	) -> impl Iterator<Item = &'static Placement> + 'static {
 		self.all().filter(move |placement| {
-			(placement.board_mask & board).is_empty()
-				&& !((placement.board_mask | board).has_floating_cells())
+			placement.not_overlapping_with(&board) && placement.not_floating_on(&board)
 		})
 	}
 }
@@ -97,7 +136,7 @@ pub static LEGAL_PLACEMENTS: LazyLock<LegalPlacements> = LazyLock::new(|| LegalP
 /// Generates all legal placements for a given piece across the 8x8x3 board with
 /// regard to all of its unique rotations.
 fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
-	let mut placements = Vec::new();
+	let mut placements = Vec::<Placement>::new();
 
 	let cells = piece
 		.canonical_position()
@@ -172,12 +211,16 @@ fn legal_placements_of_piece(piece: Piece) -> Vec<Placement> {
 						position,
 						board_mask,
 						occupied_positions: cell_positions,
-						notation: build_notation(piece, rotation, position).leak(),
+						notation: build_notation(piece, rotation, position).leak::<'static>(),
+						precomputations: PlacementLegalityPrecomputation {
+							layer_1_floating: board_mask.layers[1] & !board_mask.layers[0],
+							layer_2_floating: board_mask.layers[2] & !board_mask.layers[1],
+						},
 					};
 
 					if !placements
 						.iter()
-						.any(|p: &Placement| p.board_mask == placement.board_mask)
+						.any(|existing| existing.board_mask == placement.board_mask)
 					{
 						placements.push(placement);
 					}
