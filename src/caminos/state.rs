@@ -1,10 +1,10 @@
-use rand::{Rng, seq::IndexedRandom};
+use rand::{Rng, seq::IteratorRandom};
 
 use crate::{
 	caminos::{
 		board::{BitBoard, Layer},
 		piece::Piece,
-		placement::{LEGAL_PLACEMENTS, Placement, PlacementRefs},
+		placement::{LEGAL_PLACEMENTS, Placement},
 	},
 	util::ansi,
 };
@@ -74,26 +74,26 @@ impl PlayerState {
 	}
 
 	/// Returns a list of the piece types that this player can still place.
-	pub fn remaining_piece_types(&self) -> Vec<Piece> {
+	pub fn remaining_piece_types<'a>(&self) -> impl Iterator<Item = &'a Piece> {
 		let mut pieces = Vec::new();
 
 		if self.l_remaining > 0 {
-			pieces.push(Piece::L);
+			pieces.push(&Piece::L);
 		}
 
 		if self.t_remaining > 0 {
-			pieces.push(Piece::T);
+			pieces.push(&Piece::T);
 		}
 
 		if self.z_remaining > 0 {
-			pieces.push(Piece::Z);
+			pieces.push(&Piece::Z);
 		}
 
 		if self.o_remaining > 0 {
-			pieces.push(Piece::O);
+			pieces.push(&Piece::O);
 		}
 
-		pieces
+		pieces.into_iter()
 	}
 
 	/// Returns a random piece that this player can still place.
@@ -137,24 +137,23 @@ impl GameState {
 	}
 
 	/// Returns all legal placements for the current player.
-	/// Assumes that the game is not yet over.
-	pub fn legal_placements(&self) -> PlacementRefs {
-		if self.result.is_some() {
-			// The game has concluded, so there are no more legal moves
-			return Vec::new();
-		}
+	/// Returns an empty iterator if the game has concluded.
+	pub fn next_legal_placements(&self) -> impl Iterator<Item = &'static Placement> {
+		self.result
+			.is_none()
+			.then(|| {
+				let next_player_state = match self.next_player {
+					Player::A => &self.players[0],
+					Player::B => &self.players[1],
+				};
 
-		let current_player_state = match self.next_player {
-			Player::A => &self.players[0],
-			Player::B => &self.players[1],
-		};
-
-		let occupied = self.players[0].occupancy | self.players[1].occupancy;
-		let remaining_types = current_player_state.remaining_piece_types();
-
-		LEGAL_PLACEMENTS
-			.of_many_without_overlap_without_floating(&remaining_types, &occupied)
-			.collect()
+				LEGAL_PLACEMENTS.of_many_without_overlap_without_floating(
+					next_player_state.remaining_piece_types(),
+					self.occupancy(),
+				)
+			})
+			.into_iter()
+			.flatten()
 	}
 
 	/// Applies a placement to the game state.
@@ -199,6 +198,11 @@ impl GameState {
 		[a_bot | a_mid | a_top, b_bot | b_mid | b_top]
 	}
 
+	/// Returns a bitboard representing all occupied cells regardless of player.
+	pub fn occupancy(&self) -> BitBoard {
+		self.players[0].occupancy | self.players[1].occupancy
+	}
+
 	/// Determines whether the last move concluded the game.
 	/// Returns [`Some`] if the game has concluded,
 	/// or [`None`] if the game has not yet concluded.
@@ -214,14 +218,16 @@ impl GameState {
 			return Some(GameResult::StrongWin(Player::B));
 		}
 
-		let used = a.occupancy | b.occupancy;
-		let current = match self.next_player {
+		let next_player_state = match self.next_player {
 			Player::A => a,
 			Player::B => b,
 		};
 
 		if LEGAL_PLACEMENTS
-			.of_many_without_overlap_without_floating(&current.remaining_piece_types(), &used)
+			.of_many_without_overlap_without_floating(
+				next_player_state.remaining_piece_types(),
+				self.occupancy(),
+			)
 			.peekable()
 			.peek()
 			.is_some()

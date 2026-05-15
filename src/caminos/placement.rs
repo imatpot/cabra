@@ -37,13 +37,14 @@ impl LegalPlacements {
 	}
 
 	/// Returns the slice of all possible placements for the given piece.
-	pub fn of_piece(&self, piece: &Piece) -> &[Placement] {
+	pub fn of_piece(&self, piece: Piece) -> impl Iterator<Item = &Placement> {
 		match piece {
 			Piece::L => &self.of_l,
 			Piece::T => &self.of_t,
 			Piece::Z => &self.of_z,
 			Piece::O => &self.of_o,
 		}
+		.iter()
 	}
 
 	/// Returns an iterator yielding all placements for the given piece that do
@@ -51,26 +52,24 @@ impl LegalPlacements {
 	/// introduce any floating cells.
 	pub fn of_piece_without_overlap_without_floating(
 		&self,
-		piece: &Piece,
-		board: &BitBoard,
+		piece: Piece,
+		board: BitBoard,
 	) -> impl Iterator<Item = &Placement> {
-		self.of_piece(piece).iter().filter(|placement| {
-			(placement.board_mask & *board).is_empty()
-				&& !((placement.board_mask | *board).has_floating_cells())
+		self.of_piece(piece).filter(move |placement| {
+			(placement.board_mask & board).is_empty()
+				&& !((placement.board_mask | board).has_floating_cells())
 		})
 	}
 
 	/// Returns an iterator yielding all placements for the given pieces that do
 	/// not overlap with the occupied cells in the provided board and do not
 	/// introduce any floating cells.
-	pub fn of_many_without_overlap_without_floating(
-		&self,
-		pieces: &[Piece],
-		board: &BitBoard,
-	) -> impl Iterator<Item = &Placement> {
-		pieces
-			.iter()
-			.flat_map(|piece| self.of_piece_without_overlap_without_floating(piece, board))
+	pub fn of_many_without_overlap_without_floating<'s, 'p, P: Iterator<Item = &'p Piece>>(
+		&'s self,
+		pieces: P,
+		board: BitBoard,
+	) -> impl Iterator<Item = &'s Placement> + use<'p, 's, P> {
+		pieces.flat_map(move |piece| self.of_piece_without_overlap_without_floating(*piece, board))
 	}
 
 	/// Returns an iterator yielding all combined placements that do
@@ -78,11 +77,11 @@ impl LegalPlacements {
 	/// introduce any floating cells.
 	pub fn of_all_without_overlap_without_floating(
 		&self,
-		board: &BitBoard,
+		board: BitBoard,
 	) -> impl Iterator<Item = &Placement> {
-		self.all().filter(|placement| {
-			(placement.board_mask & *board).is_empty()
-				&& !((placement.board_mask | *board).has_floating_cells())
+		self.all().filter(move |placement| {
+			(placement.board_mask & board).is_empty()
+				&& !((placement.board_mask | board).has_floating_cells())
 		})
 	}
 }

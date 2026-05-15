@@ -51,14 +51,13 @@ fn human_turn(state: &mut GameState) {
 
 	while placement.is_none() {
 		io::stdin().read_line(&mut input).unwrap();
+
 		placement = LEGAL_PLACEMENTS
-			.of_all_without_overlap_without_floating(
-				&(state.players[0].occupancy | state.players[1].occupancy),
-			)
+			.of_all_without_overlap_without_floating(state.occupancy())
 			.find(|p| p.notation == input.trim());
 
 		if placement.is_none() {
-			print!("Invalid placement {}, try again: ", input.trim());
+			print!("Can't place {}, try again: ", input.trim());
 			io::stdout().flush().unwrap();
 			input.clear();
 		}
@@ -68,7 +67,7 @@ fn human_turn(state: &mut GameState) {
 }
 
 fn agent_turn(state: &mut GameState, agent: &mut MctsAgent) {
-	let placement = agent.search_best_placement(state).unwrap();
+	let placement = agent.search_best_placement(state.clone()).unwrap();
 	state.apply_placement(placement);
 	println!("Agent plays: {}", placement.notation);
 }

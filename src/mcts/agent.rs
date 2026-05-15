@@ -8,7 +8,7 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use crate::{
 	caminos::{placement::Placement, state::GameState},
 	mcts::{
-		graph::{Edge, EdgeIndex, Graph, Node, NodeId},
+		graph::{Edge, EdgeIndex, Graph, Node},
 		policy::{
 			action::ActionPolicy,
 			computation::ComputationalLimit,
@@ -33,18 +33,12 @@ pub struct MctsAgent {
 impl MctsAgent {
 	/// Finds the best next placement for the given game state
 	/// using Monte Carlo Tree Search.
-	///
-	/// Can optionally reroot the search graph to the given game state,
-	/// saving memory for large graph but losing the ability to reuse explored
-	/// states from closer to the old root.
-	pub fn search_best_placement(&mut self, origin: &GameState) -> Option<&'static Placement> {
-		let id = origin.as_node_id();
-
+	pub fn search_best_placement(&mut self, origin: GameState) -> Option<&'static Placement> {
 		if self
 			.graph
 			.nodes
-			.entry(id)
-			.or_insert_with(|| Node::new(origin.clone()))
+			.entry(origin)
+			.or_insert_with(|| Node::new(origin))
 			.is_terminal()
 		{
 			// No placement can be made from a terminal state
@@ -59,7 +53,7 @@ impl MctsAgent {
 		let mut computational_limit_not_exhausted = self.config.computational_limit.predicate();
 
 		while computational_limit_not_exhausted() {
-			self.iterate(id);
+			self.iterate(origin);
 			iterations += 1;
 		}
 
@@ -76,11 +70,11 @@ impl MctsAgent {
 			&self
 				.graph
 				.nodes
-				.get(&id)
+				.get(&origin)
 				.unwrap()
 				.children
 				.iter()
-				.map(|edge| (edge, self.graph.nodes.get(&edge.child_id).unwrap()))
+				.map(|edge| (edge, self.graph.nodes.get(&edge.child_state).unwrap()))
 				.collect::<Vec<_>>(),
 		)
 	}
@@ -101,10 +95,10 @@ impl MctsAgent {
 	/// 4. Backpropagation: Update the visit counts and scores of all nodes
 	///    and edges along the path from the new child node back to the root
 	///    based on the game result and the scoring policy.
-	fn iterate(&mut self, origin_id: NodeId) {
-		let (leaf_id, mut path) = self.select(origin_id);
+	fn iterate(&mut self, origin: GameState) {
+		let (leaf_id, mut path) = self.select(origin);
 
-		if let Some((edge_index, child_id, child_state)) = self.expand(&leaf_id) {
+		if let Some((edge_index, child_state)) = self.expand(&leaf_id) {
 			path.push((leaf_id, edge_index));
 
 			let rollouts: Vec<RolloutResult> = (0..self.config.rollout_intensity.rollouts_per_node)
@@ -112,7 +106,7 @@ impl MctsAgent {
 				.map(|_| self.rollout(&child_state))
 				.collect();
 
-			self.backpropagate(&path, &child_id, &rollouts);
+			self.backpropagate(&path, &child_state, &rollouts);
 		} else {
 			let node = self.graph.nodes.get(&leaf_id).unwrap();
 
@@ -135,9 +129,9 @@ impl MctsAgent {
 	}
 
 	/// Selects a leaf node to expand, starting from the given origin node ID.
-	fn select(&self, origin_id: NodeId) -> (NodeId, Vec<MctsSelection>) {
+	fn select(&self, origin: GameState) -> (GameState, Vec<MctsSelection>) {
 		let mut path = Vec::<MctsSelection>::new();
-		let mut current_id = origin_id;
+		let mut current_id = origin;
 
 		loop {
 			let node = self.graph.nodes.get(&current_id).unwrap();
@@ -155,13 +149,13 @@ impl MctsAgent {
 				.iter()
 				.enumerate()
 				.max_by(|(_, edge_to_a), (_, edge_to_b)| {
-					let a = self.graph.nodes.get(&edge_to_a.child_id).unwrap();
-					let b = self.graph.nodes.get(&edge_to_b.child_id).unwrap();
+					let a = self.graph.nodes.get(&edge_to_a.child_state).unwrap();
+					let b = self.graph.nodes.get(&edge_to_b.child_state).unwrap();
 					let score_a = self.config.selection_policy.score(node, edge_to_a, a);
 					let score_b = self.config.selection_policy.score(node, edge_to_b, b);
 					score_a.total_cmp(&score_b)
 				})
-				.map(|(i, e)| (i, e.child_id))
+				.map(|(i, e)| (i, e.child_state))
 				.unwrap();
 
 			path.push((current_id, best_edge_to_child));
@@ -170,8 +164,8 @@ impl MctsAgent {
 	}
 
 	/// Expands the given node by adding a new, unexplored child node.
-	fn expand(&mut self, node_id: &NodeId) -> Option<MctsExpansion> {
-		let node = self.graph.nodes.get_mut(&node_id).unwrap();
+	fn expand(&mut self, node_state: &GameState) -> Option<MctsExpansion> {
+		let node = self.graph.nodes.get_mut(&node_state).unwrap();
 
 		if node.unexplored_placements.is_empty()
 			|| !self.config.expansion_predicate.should_expand(&node)
@@ -186,20 +180,19 @@ impl MctsAgent {
 
 		let mut child_state = node.state;
 		child_state.apply_placement(placement);
-		let child_id = child_state.as_node_id();
 
-		node.children.push(Edge::new(placement, child_id));
+		node.children.push(Edge::new(placement, child_state));
 		let edge_index = node.children.len() - 1;
 
 		let child = self
 			.graph
 			.nodes
-			.entry(child_id)
+			.entry(child_state)
 			.or_insert_with(|| Node::new(child_state));
 
-		child.parents.insert(*node_id);
+		child.parents.insert(*node_state);
 
-		Some((edge_index, child_id, child_state))
+		Some((edge_index, child_state))
 	}
 
 	/// Run a single rollout.
@@ -213,7 +206,7 @@ impl MctsAgent {
 	fn backpropagate(
 		&mut self,
 		path: &[MctsSelection],
-		terminal_id: &NodeId,
+		terminal: &GameState,
 		rollouts: &[RolloutResult],
 	) {
 		// Yes, I "back"propagate from the top down instead of bottom up.
@@ -238,7 +231,7 @@ impl MctsAgent {
 			node.children[edge_index].visit(num_rollouts, edge_score);
 		}
 
-		let terminal = self.graph.nodes.get_mut(&terminal_id).unwrap();
+		let terminal = self.graph.nodes.get_mut(&terminal).unwrap();
 		let terminal_score = rollouts
 			.par_iter()
 			.map(|rollout| Self::node_score(&self.config.reward_policy, &terminal, rollout))
@@ -260,8 +253,8 @@ impl MctsAgent {
 	/// Reroots the search graph to the node with the given ID,
 	/// making it the new root. All nodes that are not reachable
 	/// from the new root will be removed.
-	pub fn prune(&mut self, new_root_id: &NodeId) {
-		self.graph.reroot(new_root_id);
+	pub fn prune(&mut self, new_root: &GameState) {
+		self.graph.reroot(new_root);
 	}
 
 	pub fn new(config: MctsAgentConfig) -> Self {
@@ -304,10 +297,10 @@ pub struct MctsAgentConfig {
 }
 
 /// Pairing of a [`NodeId`] and the used index in its [`Node::children`].
-type MctsSelection = (NodeId, EdgeIndex);
+type MctsSelection = (GameState, EdgeIndex);
 
 /// The result of an expansion, containing
 /// the [`EdgeIndex`] of the used edge,
 /// the [`NodeId`] of the expanded child,
 /// and the expanded node's [`GameState`].
-type MctsExpansion = (EdgeIndex, NodeId, GameState);
+type MctsExpansion = (EdgeIndex, GameState);

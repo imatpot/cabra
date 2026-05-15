@@ -1,5 +1,3 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
-
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::caminos::{
@@ -7,17 +5,13 @@ use crate::caminos::{
 	state::GameState,
 };
 
-/// Identifies a node in the DAG.
-/// Calculated as [`GameState::hash`] from [`Node::state`].
-pub type NodeId = u64;
-
 /// Identifies the edge from a parent node to a child node.
 pub type EdgeIndex = usize;
 
 /// A directed, acyclic graph representing the explored game tree.
 pub struct Graph {
 	/// Maps node IDs to their corresponding nodes.
-	pub nodes: FxHashMap<NodeId, Node>,
+	pub nodes: FxHashMap<GameState, Node>,
 }
 
 /// A node in the search graph,
@@ -36,7 +30,7 @@ pub struct Node {
 	pub children: Vec<Edge>,
 
 	/// The IDs of the parent nodes.
-	pub parents: FxHashSet<NodeId>,
+	pub parents: FxHashSet<GameState>,
 
 	/// The placements that have not yet been explored from this node.
 	/// Shouldn't overlap with an [`Edge::placement`] from [`Node::children`].
@@ -55,8 +49,8 @@ pub struct Edge {
 	/// The cumulative score of this edge.
 	pub score: f32,
 
-	/// The ID of the child node that this edge points to.
-	pub child_id: NodeId,
+	/// The state of the child node that this edge points to.
+	pub child_state: GameState,
 }
 
 impl Graph {
@@ -64,7 +58,7 @@ impl Graph {
 	/// representing the empty game state.
 	pub fn new() -> Self {
 		let mut nodes = FxHashMap::default();
-		nodes.insert(Node::root_id(), Node::new(GameState::EMPTY));
+		nodes.insert(GameState::EMPTY, Node::new(GameState::EMPTY));
 
 		Graph { nodes }
 	}
@@ -72,15 +66,15 @@ impl Graph {
 	/// Reroots the graph to the node with the given ID, making it the new root.
 	/// All nodes that are not reachable from the new root will be removed
 	/// from the graph.
-	pub fn reroot(&mut self, root_id: &NodeId) {
+	pub fn reroot(&mut self, root: &GameState) {
 		let mut visited = FxHashSet::default();
-		let mut stack = vec![*root_id];
+		let mut stack = vec![root.clone()];
 
-		while let Some(node_id) = stack.pop() {
-			if visited.insert(node_id) {
-				if let Some(node) = self.nodes.get(&node_id) {
+		while let Some(state) = stack.pop() {
+			if visited.insert(state) {
+				if let Some(node) = self.nodes.get(&state) {
 					for edge in &node.children {
-						stack.push(edge.child_id);
+						stack.push(edge.child_state);
 					}
 				}
 			}
@@ -91,16 +85,6 @@ impl Graph {
 }
 
 impl Node {
-	/// Returns the ID of the root node, which represents the empty game state.
-	pub fn root_id() -> NodeId {
-		GameState::EMPTY.as_node_id()
-	}
-
-	/// Returns the ID of this node, calculated from its game state.
-	pub fn id(&self) -> NodeId {
-		self.state.as_node_id()
-	}
-
 	/// Returns `true` if this node is terminal (i.e. it has a game result).
 	pub fn is_terminal(&self) -> bool {
 		self.state.result.is_some()
@@ -118,7 +102,7 @@ impl Node {
 		let unexplored_placements = if state.result.is_some() {
 			Vec::new()
 		} else {
-			state.legal_placements()
+			state.next_legal_placements().collect()
 		};
 
 		Self {
@@ -144,21 +128,12 @@ impl Edge {
 	}
 
 	/// Creates a new edge with the given placement and child node ID.
-	pub fn new(placement: &'static Placement, child: NodeId) -> Self {
+	pub fn new(placement: &'static Placement, child_state: GameState) -> Self {
 		Self {
 			placement,
 			visits: 0,
 			score: 0.0,
-			child_id: child,
+			child_state,
 		}
-	}
-}
-
-impl GameState {
-	/// Calculates a unique node ID for this game state by hashing its contents.
-	pub fn as_node_id(&self) -> NodeId {
-		let mut hasher = DefaultHasher::new();
-		self.hash(&mut hasher);
-		hasher.finish()
 	}
 }

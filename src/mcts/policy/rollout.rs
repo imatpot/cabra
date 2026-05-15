@@ -1,14 +1,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use chacha20::ChaCha8Rng;
-use rand::{
-	Rng, SeedableRng,
-	distr::{Distribution, weighted::WeightedIndex},
-	rng,
-	seq::IndexedRandom,
-};
+use rand::{Rng, RngExt, SeedableRng, rng, seq::IteratorRandom};
 
 use crate::caminos::{
+	board::BitBoard,
 	piece::Piece,
 	placement::Placement,
 	state::{GameResult, GameState, Player},
@@ -52,9 +48,9 @@ impl RolloutPolicy {
 				return RolloutResult { result, depth };
 			}
 
-			let legal_placements = simulation.legal_placements();
+			let mut legal_placements = simulation.next_legal_placements().peekable();
 
-			if legal_placements.is_empty() {
+			if legal_placements.peek().is_none() {
 				// No legal placements, so the game is a draw
 				return RolloutResult {
 					result: GameResult::Draw,
@@ -65,15 +61,24 @@ impl RolloutPolicy {
 			let random_placement = if self.biases.is_empty() {
 				legal_placements.choose(&mut rng).unwrap()
 			} else {
-				let weights = WeightedIndex::new(legal_placements.iter().map(|placement| {
-					self.biases.iter().fold(1.0, |acc, bias| {
-						acc * bias.get_weight(&simulation, placement)
-					})
-				}))
-				.unwrap();
+				let legal_placements_vec = legal_placements.collect::<Vec<_>>();
 
-				let i = weights.sample(&mut rng);
-				legal_placements[i]
+				let context = PlacementBiasContext::new(&simulation);
+				let mut total = 0.0;
+				let weights = legal_placements_vec
+					.iter()
+					.map(|p| {
+						total += self
+							.biases
+							.iter()
+							.fold(1.0, |acc, bias| acc * bias.get_weight(&context, p));
+						total
+					})
+					.collect::<Vec<_>>();
+
+				let threshold: f32 = rng.random_range(0.0..1.0) * total;
+				let i = weights.partition_point(|&w| w < threshold);
+				legal_placements_vec[i]
 			};
 
 			depth += 1;
@@ -139,6 +144,40 @@ pub struct RolloutResult {
 	pub depth: u8,
 }
 
+/// Precomputed context for placement bias calculations.
+pub struct PlacementBiasContext {
+	/// The opponent's occupancy bitboard shifted up by one layer.
+	opponent_shifted_up: BitBoard,
+
+	/// The opponent's occupancy bitboard shifted in all orthogonal directions,
+	/// i.e. north, south, east, west, up, down.
+	opponent_shifted_orthogonally: BitBoard,
+
+	/// The opponent's occupancy bitboard shifted in all cardinal directions,
+	/// i.e. north, south, east, west, but NOT up or down.
+	own_shifted_cardinally: BitBoard,
+
+	/// The opponent's occupancy bitboard shifted in all orthogonal directions,
+	/// i.e. north, south, east, west, up, down.
+	own_shifted_orthogonally: BitBoard,
+}
+
+impl PlacementBiasContext {
+	fn new(state: &GameState) -> Self {
+		let (own, opponent) = match state.next_player() {
+			Player::A => (state.players[0].occupancy, state.players[1].occupancy),
+			Player::B => (state.players[1].occupancy, state.players[0].occupancy),
+		};
+
+		Self {
+			opponent_shifted_up: opponent.shift_up(),
+			opponent_shifted_orthogonally: opponent.shift_orthogonally(),
+			own_shifted_cardinally: own.shift_cardinally(),
+			own_shifted_orthogonally: own.shift_orthogonally(),
+		}
+	}
+}
+
 /// Defines the bias to apply during rollouts, which can be used to guide the
 /// rollout policy towards more promising or "human" moves or strategies.
 ///
@@ -184,7 +223,7 @@ pub enum PlacementBias {
 }
 
 impl PlacementBias {
-	pub fn get_weight(&self, state: &GameState, placement: &Placement) -> f32 {
+	pub fn get_weight(&self, context: &PlacementBiasContext, placement: &Placement) -> f32 {
 		match self {
 			PlacementBias::Tall(bias) => {
 				if placement.height() > 1 {
@@ -203,7 +242,7 @@ impl PlacementBias {
 			}
 
 			PlacementBias::CoverOpponent(bias) => {
-				let num_covered = placement.opponent_covered(state);
+				let num_covered = (context.opponent_shifted_up & placement.board_mask).count_ones();
 				if num_covered > 0 {
 					*bias * num_covered as f32
 				} else {
@@ -211,7 +250,8 @@ impl PlacementBias {
 				}
 			}
 			PlacementBias::CoverOwn(bias) => {
-				let num_covered = placement.own_covered(state);
+				let num_covered =
+					(context.own_shifted_cardinally & placement.board_mask).count_ones();
 				if num_covered > 0 {
 					*bias * num_covered as f32
 				} else {
@@ -219,17 +259,19 @@ impl PlacementBias {
 				}
 			}
 			PlacementBias::TouchingOpponent(bias) => {
-				let num_touched = placement.opponent_touched(state);
-				if num_touched > 0 {
-					*bias * num_touched as f32
+				let num_covered =
+					(context.opponent_shifted_orthogonally & placement.board_mask).count_ones();
+				if num_covered > 0 {
+					*bias * num_covered as f32
 				} else {
 					1.0
 				}
 			}
 			PlacementBias::TouchingOwn(bias) => {
-				let num_touched = placement.own_touched(state);
-				if num_touched > 0 {
-					*bias * num_touched as f32
+				let num_covered =
+					(context.own_shifted_orthogonally & placement.board_mask).count_ones();
+				if num_covered > 0 {
+					*bias * num_covered as f32
 				} else {
 					1.0
 				}
@@ -251,7 +293,7 @@ impl PlacementBias {
 			}
 
 			PlacementBias::Piece(piece, bias) => {
-				if placement.is_piece_type(piece) {
+				if placement.piece == *piece {
 					*bias
 				} else {
 					1.0
@@ -261,43 +303,7 @@ impl PlacementBias {
 	}
 }
 
-impl Properties for &Placement {
-	fn opponent_covered(&self, state: &GameState) -> u8 {
-		let opponent_occupancy = match state.next_player() {
-			Player::A => state.players[1].occupancy,
-			Player::B => state.players[0].occupancy,
-		};
-
-		(opponent_occupancy.shift_up() & self.board_mask).count_ones() as u8
-	}
-
-	fn own_covered(&self, state: &GameState) -> u8 {
-		let own_occupancy = match state.next_player() {
-			Player::A => state.players[0].occupancy,
-			Player::B => state.players[1].occupancy,
-		};
-
-		(own_occupancy.shift_cardinally() & self.board_mask).count_ones() as u8
-	}
-
-	fn opponent_touched(&self, state: &GameState) -> u8 {
-		let opponent_occupancy = match state.next_player() {
-			Player::A => state.players[1].occupancy,
-			Player::B => state.players[0].occupancy,
-		};
-
-		(opponent_occupancy.shift_orthogonally() & self.board_mask).count_ones() as u8
-	}
-
-	fn own_touched(&self, state: &GameState) -> u8 {
-		let own_occupancy = match state.next_player() {
-			Player::A => state.players[0].occupancy,
-			Player::B => state.players[1].occupancy,
-		};
-
-		(own_occupancy.shift_orthogonally() & self.board_mask).count_ones() as u8
-	}
-
+impl Dimension for &Placement {
 	fn height(&self) -> u8 {
 		let zs = self.occupied_positions.map(|(_, _, z)| z).into_iter();
 		zs.max().unwrap() + 1
@@ -322,25 +328,9 @@ impl Properties for &Placement {
 
 		max - min + 1
 	}
-
-	fn is_piece_type(&self, piece: &Piece) -> bool {
-		self.piece == *piece
-	}
 }
 
-trait Properties {
-	/// Returns how many opponent cells the placement covers.
-	fn opponent_covered(&self, state: &GameState) -> u8;
-
-	/// Returns how many own cells the placement covers.
-	fn own_covered(&self, state: &GameState) -> u8;
-
-	/// Returns how many opponent cells the placement touches.
-	fn opponent_touched(&self, state: &GameState) -> u8;
-
-	/// Returns how many own cells the placement touches.
-	fn own_touched(&self, state: &GameState) -> u8;
-
+trait Dimension {
 	/// Returns the height of the placement.
 	fn height(&self) -> u8;
 
@@ -351,7 +341,4 @@ trait Properties {
 	/// Returns the east-west extent of the placement,
 	/// i.e. the distance it covers in the east-west direction.
 	fn east_west_extent(&self) -> u8;
-
-	/// Returns `true` if the placement is of the given piece type.
-	fn is_piece_type(&self, piece: &Piece) -> bool;
 }

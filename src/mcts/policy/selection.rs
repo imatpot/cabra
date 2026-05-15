@@ -25,13 +25,13 @@ impl Default for Box<dyn SelectionPolicy> {
 }
 
 impl SelectionPolicy for Ucb1 {
-	fn score(&self, parent: &Node, edge: &Edge, child: &Node) -> f32 {
+	fn score(&self, parent: &Node, edge: &Edge, _child: &Node) -> f32 {
 		if edge.visits == 0 {
 			// Unvisited edges are always preferred
 			return f32::INFINITY;
 		}
 
-		let exploitation = child.score / (child.visits as f32);
+		let exploitation = edge.score / (edge.visits as f32);
 		let exploration =
 			self.exploration_constant * ((parent.visits as f32).ln() / (edge.visits as f32)).sqrt();
 
