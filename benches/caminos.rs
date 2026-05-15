@@ -1,7 +1,17 @@
 #![allow(non_snake_case)]
 
-use cabra::caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS};
-use criterion::{Criterion, criterion_group, criterion_main};
+use cabra::{
+	caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS, state::GameState},
+	mcts::{
+		agent::{MctsAgent, MctsAgentConfig},
+		policy::{
+			computation::ComputationalIntensity,
+			expansion::ExpandRandomly,
+			rollout::{PlacementBias, RolloutPolicy},
+		},
+	},
+};
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use pprof::{
 	criterion::{Output, PProfProfiler},
 	flamegraph::Options,
@@ -16,11 +26,76 @@ criterion_group!(
 	config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(Some(Options::default()))));
 
 	targets =
+		bench__MctsAgent__iterate,
+		bench__MctsAgent__iterate_multi_rollouts,
+		bench__MctsAgent__iterate_biased,
 		bench__BitBoard__has_bridge,
 		bench__LegalPlacements__of_piece_no_overlap_no_floating,
 		bench__LegalPlacements__of_many_no_overlap_no_floating,
 		bench__LegalPlacements__of_all_no_overlap_no_floating,
 );
+
+fn bench__MctsAgent__iterate(c: &mut Criterion) {
+	c.bench_function("MctsAgent::iterate on empty state", |b| {
+		b.iter_batched(
+			|| {
+				MctsAgent::new(MctsAgentConfig {
+					rollout_policy: RolloutPolicy::seeded(0, &[]),
+					expansion_policy: Box::new(ExpandRandomly::seeded(0)),
+					computational_intensity: ComputationalIntensity {
+						rollouts_per_node: 1,
+						..ComputationalIntensity::default()
+					},
+					..MctsAgentConfig::default()
+				})
+			},
+			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			BatchSize::SmallInput,
+		)
+	});
+}
+
+fn bench__MctsAgent__iterate_multi_rollouts(c: &mut Criterion) {
+	c.bench_function("MctsAgent::iterate on empty state with 8 rollouts", |b| {
+		b.iter_batched(
+			|| {
+				MctsAgent::new(MctsAgentConfig {
+					rollout_policy: RolloutPolicy::seeded(0, &[]),
+					expansion_policy: Box::new(ExpandRandomly::seeded(0)),
+					computational_intensity: ComputationalIntensity {
+						rollouts_per_node: 8,
+						..ComputationalIntensity::default()
+					},
+					..MctsAgentConfig::default()
+				})
+			},
+			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			BatchSize::SmallInput,
+		)
+	});
+}
+
+fn bench__MctsAgent__iterate_biased(c: &mut Criterion) {
+	c.bench_function("MctsAgent::iterate on empty state with bias", |b| {
+		b.iter_batched(
+			|| {
+				MctsAgent::new(MctsAgentConfig {
+					rollout_policy: RolloutPolicy::seeded(
+						0,
+						&[
+							PlacementBias::TouchingOwn(10.0),
+							PlacementBias::CoverOpponent(5.0),
+						],
+					),
+					expansion_policy: Box::new(ExpandRandomly::seeded(0)),
+					..MctsAgentConfig::default()
+				})
+			},
+			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			BatchSize::SmallInput,
+		)
+	});
+}
 
 fn bench__BitBoard__has_bridge(c: &mut Criterion) {
 	let mut g = c.benchmark_group("BitBoard::has_bridge");
