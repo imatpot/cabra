@@ -1,10 +1,11 @@
 #![allow(dead_code)] // TODO: remove, it's just nice to quiet down rust-analyzer
 
 use std::io::{self, Write};
+use std::time::Duration;
 
 use rand::{RngExt, rng};
 
-use crate::mcts::policy::computation::Iterative;
+use crate::mcts::policy::computation::Temporal;
 use crate::{
 	caminos::{
 		placement::LEGAL_PLACEMENTS,
@@ -19,7 +20,9 @@ pub mod util;
 
 fn main() {
 	let mut agent = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(Iterative { iterations: 50_000 }),
+		computational_limit: Box::new(Temporal {
+			duration: Duration::from_secs(10),
+		}),
 		..MctsAgentConfig::default()
 	});
 

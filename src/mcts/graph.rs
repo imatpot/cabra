@@ -2,13 +2,20 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::caminos::{placement::Placement, state::GameState};
 
+/// Identifies a node in the search graph.
+pub type NodeIndex = usize;
+
 /// Identifies the edge from a parent node to a child node.
 pub type EdgeIndex = usize;
 
 /// A directed, acyclic graph representing the explored game tree.
 pub struct Graph {
-	/// Maps node IDs to their corresponding nodes.
-	pub nodes: FxHashMap<GameState, Node>,
+	/// Collection of all the graph's nodes.
+	pub nodes: Vec<Node>,
+
+	/// Maps game states to their corresponding [`NodeIndex`].
+	/// Used exclusively for de-duplication on insertion into [`Graph::nodes`].
+	pub state_index: FxHashMap<GameState, NodeIndex>,
 }
 
 /// A node in the search graph,
@@ -27,7 +34,7 @@ pub struct Node {
 	pub children: Vec<Edge>,
 
 	/// The IDs of the parent nodes.
-	pub parents: FxHashSet<GameState>,
+	pub parents: FxHashSet<NodeIndex>,
 
 	/// The placements that have not yet been explored from this node.
 	/// Shouldn't overlap with an [`Edge::placement`] from [`Node::children`].
@@ -46,38 +53,49 @@ pub struct Edge {
 	/// The cumulative score of this edge.
 	pub score: f32,
 
-	/// The state of the child node that this edge points to.
-	pub child_state: GameState,
+	/// The ID of the child node that this edge points to.
+	pub child_index: NodeIndex,
 }
 
 impl Graph {
-	/// Creates a new graph with a single root node
-	/// representing the empty game state.
-	pub fn new() -> Self {
-		let mut nodes = FxHashMap::default();
-		nodes.insert(GameState::EMPTY, Node::new(GameState::EMPTY));
-
-		Graph { nodes }
+	/// Returns a reference to the node with the given [`NodeIndex`].
+	pub fn node(&self, id: NodeIndex) -> &Node {
+		&self.nodes[id]
 	}
 
-	/// Reroots the graph to the node with the given ID, making it the new root.
-	/// All nodes that are not reachable from the new root will be removed
-	/// from the graph.
-	pub fn reroot(&mut self, root: &GameState) {
-		let mut visited = FxHashSet::default();
-		let mut stack = vec![root.clone()];
+	/// Returns a mutable reference to the node with the given [`NodeIndex`].
+	pub fn node_mut(&mut self, id: NodeIndex) -> &mut Node {
+		&mut self.nodes[id]
+	}
 
-		while let Some(state) = stack.pop() {
-			if visited.insert(state) {
-				if let Some(node) = self.nodes.get(&state) {
-					for edge in &node.children {
-						stack.push(edge.child_state);
-					}
-				}
-			}
+	/// Returns the [`NodeIndex`] of the node for the given state, if it exists.
+	pub fn index_opt(&self, state: &GameState) -> Option<NodeIndex> {
+		self.state_index.get(state).copied()
+	}
+
+	/// Returns the [`NodeIndex`] of the node for the given state,
+	/// inserting a new [`Node`] if it doesn't already exist.
+	pub fn index(&mut self, state: GameState) -> NodeIndex {
+		if let Some(&id) = self.state_index.get(&state) {
+			return id;
 		}
 
-		self.nodes.retain(|node_id, _| visited.contains(node_id));
+		let id = self.nodes.len();
+		self.nodes.push(Node::new(state));
+		self.state_index.insert(state, id);
+
+		id
+	}
+
+	/// Creates a new graph with a single root [`Node`]
+	/// representing the empty game state.
+	pub fn new() -> Self {
+		let nodes = vec![Node::new(GameState::EMPTY)];
+
+		let mut state_index = FxHashMap::default();
+		state_index.insert(GameState::EMPTY, 0);
+
+		Graph { nodes, state_index }
 	}
 }
 
@@ -125,12 +143,12 @@ impl Edge {
 	}
 
 	/// Creates a new edge with the given placement and child node ID.
-	pub fn new(placement: &'static Placement, child_state: GameState) -> Self {
+	pub fn new(placement: &'static Placement, child_index: NodeIndex) -> Self {
 		Self {
 			placement,
 			visits: 0,
 			score: 0.0,
-			child_state,
+			child_index,
 		}
 	}
 }

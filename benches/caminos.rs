@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use cabra::{
-	caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS, state::GameState},
+	caminos::{board::BitBoard, piece::Piece, placement::LEGAL_PLACEMENTS},
 	mcts::{
 		agent::{MctsAgent, MctsAgentConfig},
 		policy::{
@@ -49,7 +49,7 @@ fn bench__MctsAgent__iterate(c: &mut Criterion) {
 					..MctsAgentConfig::default()
 				})
 			},
-			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			|mut agent| black_box(agent.iterate(black_box(0))),
 			BatchSize::SmallInput,
 		)
 	});
@@ -69,7 +69,7 @@ fn bench__MctsAgent__iterate_multi_rollouts(c: &mut Criterion) {
 					..MctsAgentConfig::default()
 				})
 			},
-			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			|mut agent| black_box(agent.iterate(black_box(0))),
 			BatchSize::SmallInput,
 		)
 	});
@@ -91,7 +91,7 @@ fn bench__MctsAgent__iterate_biased(c: &mut Criterion) {
 					..MctsAgentConfig::default()
 				})
 			},
-			|mut agent| black_box(agent.iterate(black_box(GameState::EMPTY))),
+			|mut agent| black_box(agent.iterate(black_box(0))),
 			BatchSize::SmallInput,
 		)
 	});
