@@ -1,9 +1,6 @@
 use std::ops::BitOr;
 
-use crate::{
-	caminos::placement::{Placement, Position},
-	util::ansi,
-};
+use crate::caminos::placement::{Placement, Position};
 
 /// A Caminos bitboard representing a single layer of 8x8 cells.
 /// It is player-agnostic and only tracks which cells are occupied.
@@ -317,42 +314,6 @@ impl BitBoard {
 // -------------------------------------------------------------------------- //
 // UTILITY IMPLS                                                              //
 // -------------------------------------------------------------------------- //
-
-impl std::fmt::Display for BitBoard {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		// Unoccupied: Alternate between dim ░▒ with flipped order on each row
-		// Occupied: Regular █
-
-		writeln!(f, "Layer 0          Layer 1          Layer 2")?;
-
-		for y in 0..8 {
-			for z in 0..3 {
-				for x in 0..8 {
-					let mut color = ansi::DIM;
-
-					let char = if self.is_xyz_occupied(x, y, z) {
-						color = ansi::RESET;
-						'█'
-					} else if y % 2 == 0 {
-						if x % 2 == 0 { '░' } else { '▒' }
-					} else {
-						if x % 2 == 0 { '▒' } else { '░' }
-					};
-
-					write!(f, "{}{}{} ", color, char, ansi::RESET)?;
-				}
-
-				if z < 2 {
-					write!(f, " ")?;
-				}
-			}
-
-			writeln!(f)?;
-		}
-
-		Ok(())
-	}
-}
 
 impl std::ops::Not for Layer {
 	type Output = Self;

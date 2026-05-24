@@ -1,6 +1,6 @@
 use std::{
 	io::{self, Write},
-	time::Instant,
+	time::{Duration, Instant},
 };
 
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -18,7 +18,6 @@ use crate::{
 			selection::SelectionPolicy,
 		},
 	},
-	util::ansi,
 };
 
 /// A Monte Carlo Tree Search (MCTS) agent.
@@ -30,21 +29,36 @@ pub struct MctsAgent {
 	pub config: MctsAgentConfig,
 }
 
+/// The result of a Monte Carlo Tree Search (MCTS) search.
+pub struct MctsResult {
+	/// The best placement found by the search, if any.
+	pub placement: Option<&'static Placement>,
+
+	/// The number of iterations performed during the search.
+	pub iterations: u32,
+
+	/// The duration of the search.
+	pub duration: Duration,
+}
+
 impl MctsAgent {
 	/// Finds the best next placement for the given game state
 	/// using Monte Carlo Tree Search.
-	pub fn search_best_placement(&mut self, origin: GameState) -> Option<&'static Placement> {
+	pub fn search_best_placement(&mut self, origin: GameState) -> MctsResult {
+		let start = Instant::now();
 		let origin_index = self.graph.index(origin);
 
 		if self.graph.node(origin_index).is_terminal() {
 			// No placement can be made from a terminal state
-			return None;
+			return MctsResult {
+				placement: None,
+				iterations: 0,
+				duration: start.elapsed(),
+			};
 		}
 
-		print!("{}Iterating... ", ansi::DIM);
 		io::stdout().flush().ok();
 
-		let start = Instant::now();
 		let mut iterations = 0;
 		let mut computational_limit_not_exhausted = self.config.computational_limit.predicate();
 
@@ -52,14 +66,6 @@ impl MctsAgent {
 			self.iterate(origin_index);
 			iterations += 1;
 		}
-
-		let elapsed = Instant::now().duration_since(start);
-
-		println!(
-			"iterated {iterations} times in {} ms{}",
-			elapsed.as_millis(),
-			ansi::RESET
-		);
 
 		// Return the placement that leads to the best child node according to the win policy
 		let children = self
@@ -70,7 +76,13 @@ impl MctsAgent {
 			.map(|edge| (edge, self.graph.node(edge.child_index)))
 			.collect::<Vec<_>>();
 
-		self.config.action_policy.select(&children)
+		let placement = self.config.action_policy.select(&children);
+
+		MctsResult {
+			placement,
+			iterations,
+			duration: start.elapsed(),
+		}
 	}
 
 	/// Performs a single MCTS iteration, starting from the given node ID.

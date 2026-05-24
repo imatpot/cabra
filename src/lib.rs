@@ -2,4 +2,4 @@
 
 pub mod caminos;
 pub mod mcts;
-mod util;
+pub mod ui;
