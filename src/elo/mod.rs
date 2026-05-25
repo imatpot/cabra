@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	caminos::state::{GameResult, GameState, Player},
-	mcts::agent::MctsAgent,
+	mcts::{agent::MctsAgent, graph::Graph},
 };
 
 const K: f64 = 32.0;
@@ -19,6 +19,10 @@ pub struct NamedAgent {
 impl NamedAgent {
 	pub fn new(name: String, agent: MctsAgent) -> Self {
 		Self { name, agent }
+	}
+
+	fn reset(&mut self) {
+		self.agent.graph = Graph::new();
 	}
 }
 
@@ -71,10 +75,7 @@ impl EloRecord {
 			.iter()
 			.map(|&n| (n.to_string(), SearchStats::default()))
 			.collect();
-		let games_per_agent = names
-			.iter()
-			.map(|&n| (n.to_string(), 0u32))
-			.collect();
+		let games_per_agent = names.iter().map(|&n| (n.to_string(), 0u32)).collect();
 		let elo_history = names
 			.iter()
 			.map(|&n| (n.to_string(), vec![INITIAL_ELO]))
@@ -161,8 +162,14 @@ impl EloRecord {
 			}
 		}
 
-		self.elo_history.entry(a.to_string()).or_default().push(self.elo[a]);
-		self.elo_history.entry(b.to_string()).or_default().push(self.elo[b]);
+		self.elo_history
+			.entry(a.to_string())
+			.or_default()
+			.push(self.elo[a]);
+		self.elo_history
+			.entry(b.to_string())
+			.or_default()
+			.push(self.elo[b]);
 	}
 }
 
@@ -174,7 +181,11 @@ fn elo_record_file_path(prefix: &str, agents: &[NamedAgent]) -> PathBuf {
 
 /// Play one game between agent_a (Player::A) and agent_b (Player::B).
 /// Returns the name of the winner, or None for a draw.
-fn play_game(agent_a: &mut NamedAgent, agent_b: &mut NamedAgent, record: &mut EloRecord) -> Option<String> {
+fn play_game(
+	agent_a: &mut NamedAgent,
+	agent_b: &mut NamedAgent,
+	record: &mut EloRecord,
+) -> Option<String> {
 	let mut state = GameState::EMPTY;
 
 	while state.result.is_none() {
@@ -228,6 +239,8 @@ pub fn run_elo_tournament(mut agents: Vec<NamedAgent>, file_prefix: &str) {
 				);
 
 				let winner = play_game(agent_a, agent_b, &mut record);
+				agent_a.reset();
+				agent_b.reset();
 
 				match &winner {
 					Some(w) => println!("  Winner: {w}"),
@@ -251,7 +264,10 @@ pub fn run_elo_tournament(mut agents: Vec<NamedAgent>, file_prefix: &str) {
 						.map(|s| s.avg_search_ms())
 						.unwrap_or(0.0);
 					let games = record.games_per_agent.get(*name).copied().unwrap_or(0);
-					println!("    {}: {:.1} elo  {} games  ({:.0} ms/move avg)", name, elo, games, avg_ms);
+					println!(
+						"    {}: {:.1} elo  {} games  ({:.0} ms/move avg)",
+						name, elo, games, avg_ms
+					);
 				}
 			}
 		}
