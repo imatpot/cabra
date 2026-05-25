@@ -196,6 +196,8 @@ dependencies = [
  "ratatui",
  "rayon",
  "rustc-hash",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

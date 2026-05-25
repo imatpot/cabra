@@ -15,7 +15,7 @@ use crate::ui::tui::display::PlacementPreview;
 use crate::{
 	caminos::piece::Piece,
 	mcts::policy::{
-		computation::{Iterative, Temporal},
+		computation::Iterative,
 		rollout::{PlacementBias, RolloutPolicy},
 		selection::BayesianUct,
 	},
@@ -29,13 +29,65 @@ use crate::{
 };
 
 mod caminos;
+mod elo;
 mod mcts;
 mod ui;
 
 fn main() {
 	let arg = std::env::args().nth(1);
 
-	match arg {
+	match arg.as_deref() {
+		Some("elo") => {
+			use crate::elo::{NamedAgent, run_elo_tournament};
+			let prefix = "elo-10k-iter";
+			run_elo_tournament(
+				vec![
+					NamedAgent::new(
+						"unbiased".into(),
+						MctsAgent::new(MctsAgentConfig {
+							..MctsAgentConfig::default()
+						}),
+					),
+					NamedAgent::new(
+						"bias-cover".into(),
+						MctsAgent::new(MctsAgentConfig {
+							rollout_policy: RolloutPolicy::unseeded(&[
+								PlacementBias::CoverOpponent(10.0), //
+							]),
+							..MctsAgentConfig::default()
+						}),
+					),
+					NamedAgent::new(
+						"bias-north-south".into(),
+						MctsAgent::new(MctsAgentConfig {
+							rollout_policy: RolloutPolicy::unseeded(&[
+								PlacementBias::NorthSouth(10.0), //
+							]),
+							..MctsAgentConfig::default()
+						}),
+					),
+					NamedAgent::new(
+						"bias-east-west".into(),
+						MctsAgent::new(MctsAgentConfig {
+							rollout_policy: RolloutPolicy::unseeded(&[
+								PlacementBias::EastWest(10.0), //
+							]),
+							..MctsAgentConfig::default()
+						}),
+					),
+					NamedAgent::new(
+						"bias-tall".into(),
+						MctsAgent::new(MctsAgentConfig {
+							rollout_policy: RolloutPolicy::unseeded(&[
+								PlacementBias::Tall(10.0), //
+							]),
+							..MctsAgentConfig::default()
+						}),
+					),
+				],
+				&prefix,
+			);
+		}
 		_ => human_vs_agent(),
 	};
 }
