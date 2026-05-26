@@ -228,18 +228,20 @@ impl MctsAgent {
 		for &(node_id, edge_index) in path.iter() {
 			let node = self.graph.node_mut(node_id);
 
-			let (node_score, edge_score) =
-				rollouts
-					.iter()
-					.fold((0.0, 0.0), |(node_acc, edge_acc), rollout| {
-						(
-							node_acc + Self::node_score(&self.config.reward_policy, node, rollout),
-							edge_acc + Self::edge_score(&self.config.reward_policy, node, rollout),
-						)
-					});
+			let (node_score, edge_score, edge_score_squared) = rollouts.iter().fold(
+				(0.0, 0.0, 0.0),
+				|(node_acc, edge_acc, edge_sq_acc), rollout| {
+					let edge_score = Self::edge_score(&self.config.reward_policy, node, rollout);
+					(
+						node_acc + Self::node_score(&self.config.reward_policy, node, rollout),
+						edge_acc + edge_score,
+						edge_sq_acc + edge_score * edge_score,
+					)
+				},
+			);
 
 			node.visit(num_rollouts, node_score);
-			node.children[edge_index].visit(num_rollouts, edge_score);
+			node.children[edge_index].visit(num_rollouts, edge_score, edge_score_squared);
 		}
 
 		let terminal = self.graph.node_mut(terminal_index);

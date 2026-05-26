@@ -53,6 +53,10 @@ pub struct Edge {
 	/// The cumulative score of this edge.
 	pub score: f32,
 
+	/// The cumulative sum of squared scores of this edge.
+	/// Used by variance-aware selection policies (e.g. UCB1-Tuned).
+	pub score_squared: f32,
+
 	/// The ID of the child node that this edge points to.
 	pub child_index: NodeIndex,
 }
@@ -135,11 +139,11 @@ impl Node {
 }
 
 impl Edge {
-	/// Updates the visit count and cumulative score of this edge
-	/// based on the given score.
-	pub fn visit(&mut self, visits: u32, score: f32) {
+	/// Updates the visit count, cumulative score, and cumulative squared score of this edge.
+	pub fn visit(&mut self, visits: u32, score: f32, score_squared: f32) {
 		self.visits += visits;
 		self.score += score;
+		self.score_squared += score_squared;
 	}
 
 	/// Creates a new edge with the given placement and child node ID.
@@ -148,6 +152,7 @@ impl Edge {
 			placement,
 			visits: 0,
 			score: 0.0,
+			score_squared: 0.0,
 			child_index,
 		}
 	}
