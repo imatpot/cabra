@@ -26,6 +26,14 @@ pub struct RewardPolicy {
 	/// a value of `-0.1` means that each additional move
 	/// decreases the score by 10%.
 	pub depth_scaling: f32,
+
+	/// A bonus added to the score for each bias matched across all own moves
+	/// during the rollout. Rewards games where own moves followed multiple
+	/// rollout biases, since those lines are considered higher quality.
+	/// 
+	/// Should preferrably not exceed 1/12th of the strong win score
+	/// to avoid overshadowing the actual game result.
+	pub bias_bonus: f32,
 }
 
 impl Default for RewardPolicy {
@@ -37,6 +45,7 @@ impl Default for RewardPolicy {
 			weak_loss: -1.0,
 			strong_loss: -1.0,
 			depth_scaling: -0.1,
+			bias_bonus: 0.05,
 		}
 	}
 }
@@ -44,7 +53,13 @@ impl Default for RewardPolicy {
 impl RewardPolicy {
 	/// Returns the score corresponding to the given game result
 	/// from the perspective of the given player.
-	pub fn score(&self, result: &GameResult, depth: &u8, player: &Player) -> f32 {
+	pub fn score(
+		&self,
+		result: &GameResult,
+		depth: &u8,
+		bias_matches: u32,
+		player: &Player,
+	) -> f32 {
 		let unscaled = match result {
 			GameResult::StrongWin(p) if *p == *player => self.strong_win,
 			GameResult::WeakWin(p) if *p == *player => self.weak_win,
@@ -54,5 +69,6 @@ impl RewardPolicy {
 		};
 
 		unscaled * (1.0 + self.depth_scaling * (*depth) as f32)
+			+ self.bias_bonus * bias_matches as f32
 	}
 }

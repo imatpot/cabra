@@ -121,7 +121,15 @@ impl MctsAgent {
 
 			if let Some(result) = leaf.state.result {
 				// Node is terminal -> backpropagate immediately
-				self.backpropagate(&path, leaf_index, &[RolloutResult { result, depth: 0 }]);
+				self.backpropagate(
+					&path,
+					leaf_index,
+					&[RolloutResult {
+						result,
+						depth: 0,
+						num_biased_moves: 0,
+					}],
+				);
 			} else {
 				// Node was not terminal but couldn't (yet) be expanded
 				let state = leaf.state;
@@ -255,12 +263,22 @@ impl MctsAgent {
 
 	/// Score from the perspective of the player who moved to this node.
 	fn node_score(reward_policy: &RewardPolicy, node: &Node, rollout: &RolloutResult) -> f32 {
-		reward_policy.score(&rollout.result, &rollout.depth, &node.state.last_player())
+		reward_policy.score(
+			&rollout.result,
+			&rollout.depth,
+			rollout.num_biased_moves,
+			&node.state.last_player(),
+		)
 	}
 
 	/// Score from the perspective of the player who made the edge's move.
 	fn edge_score(reward_policy: &RewardPolicy, parent: &Node, rollout: &RolloutResult) -> f32 {
-		reward_policy.score(&rollout.result, &rollout.depth, &parent.state.next_player())
+		reward_policy.score(
+			&rollout.result,
+			&rollout.depth,
+			rollout.num_biased_moves,
+			&parent.state.next_player(),
+		)
 	}
 
 	pub fn new(config: MctsAgentConfig) -> Self {

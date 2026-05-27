@@ -40,12 +40,18 @@ impl RolloutPolicy {
 		let mut rng = ChaCha8Rng::seed_from_u64(self.rng_seed);
 		rng.set_stream(self.rng_counter.fetch_add(1, Ordering::Relaxed));
 
+		let own_player = state.next_player();
 		let mut simulation = *state;
 		let mut depth = 0u8;
+		let mut bias_matches = 0u32;
 
 		loop {
 			if let Some(result) = simulation.result {
-				return RolloutResult { result, depth };
+				return RolloutResult {
+					result,
+					depth,
+					num_biased_moves: bias_matches,
+				};
 			}
 
 			let mut legal_placements = simulation.next_legal_placements().peekable();
@@ -55,10 +61,13 @@ impl RolloutPolicy {
 				return RolloutResult {
 					result: GameResult::Draw,
 					depth,
+					num_biased_moves: bias_matches,
 				};
 			}
 
-			let random_placement = if self.biases.is_empty() {
+			let is_own_turn = simulation.next_player() == own_player;
+
+			let random_placement = if self.biases.is_empty() || !is_own_turn {
 				legal_placements.choose(&mut rng).unwrap()
 			} else {
 				let legal_placements_vec = legal_placements.collect::<Vec<_>>();
@@ -78,11 +87,39 @@ impl RolloutPolicy {
 
 				let threshold: f32 = rng.random_range(0.0..1.0) * total;
 				let i = weights.partition_point(|&w| w < threshold);
-				legal_placements_vec[i]
+
+				if i >= legal_placements_vec.len() {
+					// Due to floating point inaccuracies, we might end up with a threshold
+					// that is slightly higher than the total weight, which would cause
+					// partition_point to return an index equal to the length of the vector.
+					// That is an indication that we should select the last placement.
+
+					let placement = legal_placements_vec.last().unwrap();
+
+					bias_matches += self
+						.biases
+						.iter()
+						.filter(|bias| bias.get_weight(&context, placement) > 1.0)
+						.count() as u32;
+
+					simulation.apply_placement(placement);
+					continue;
+				}
+
+				let p = legal_placements_vec[i];
+
+				let match_count = self
+					.biases
+					.iter()
+					.filter(|bias| bias.get_weight(&context, p) > 1.0)
+					.count() as u32;
+				bias_matches += match_count;
+
+				p
 			};
 
 			depth += 1;
-			simulation.apply_placement(random_placement)
+			simulation.apply_placement(random_placement);
 		}
 	}
 
@@ -121,6 +158,10 @@ pub struct RolloutResult {
 	/// scale the impact of the result. Limited to u8 as Caminos concludes after
 	/// a maximum of 28 moves.
 	pub depth: u8,
+
+	/// The total number of biases matched across all own moves during the
+	/// rollout. A move matching multiple biases contributes multiple counts.
+	pub num_biased_moves: u32,
 }
 
 /// Precomputed context for placement bias calculations.
@@ -168,9 +209,13 @@ impl PlacementBiasContext {
 /// When multiple biases apply to the same move, their effects are multiplied,
 /// so a move that is both tall and touching opponent pieces with biases of `2`
 /// and `0.5` respectively would have an overall bias of 1.
+///
+/// A bias of `0` means that a move will never be selected,
+/// while a bias of `f32::INFINITY` means that a move would always be selected
+/// if available.
 #[derive(Clone, Copy)]
 pub enum PlacementBias {
-	/// Prefer placements spanning two or more layers.$
+	/// Prefer placements spanning two or more layers.
 	/// The taller the placement, the stronger the bias.
 	Tall(f32),
 
