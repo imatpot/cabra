@@ -115,9 +115,7 @@ fn human_turn(state: &mut GameState) {
 			print!("Can't place {}, try again: ", input.trim());
 			io::stdout().flush().unwrap();
 			input.clear();
-		}
-
-		if previewed {
+		} else if previewed {
 			println!("{}", PlacementPreview(state, placement));
 
 			print!(
