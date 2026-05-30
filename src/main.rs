@@ -1,6 +1,7 @@
 #![allow(dead_code)] // TODO: remove, it's just nice to quiet down rust-analyzer
 
 use std::{
+	f32::consts::SQRT_2,
 	io::{self, Write},
 	sync::{
 		Arc,
@@ -10,8 +11,15 @@ use std::{
 	time::Duration,
 };
 
-use crate::mcts::policy::computation::Temporal;
 use crate::ui::tui::display::PlacementPreview;
+use crate::{
+	caminos::piece::Piece,
+	mcts::policy::{
+		computation::{Iterative, Temporal},
+		rollout::{PlacementBias, RolloutPolicy},
+		selection::BayesianUct,
+	},
+};
 use crate::{
 	caminos::{
 		placement::LEGAL_PLACEMENTS,
@@ -38,9 +46,21 @@ fn human_vs_agent() {
 	let human = choose_human_player();
 
 	let mut agent = MctsAgent::new(MctsAgentConfig {
-		computational_limit: Box::new(Temporal {
-			duration: Duration::from_secs(10),
+		computational_limit: Box::new(Iterative {
+			iterations: 200_000,
 		}),
+		selection_policy: Box::new(BayesianUct {
+			exploration_constant: SQRT_2,
+			alpha: 1.0,
+			beta: 1.0,
+		}),
+		rollout_policy: RolloutPolicy::unseeded(&[
+			PlacementBias::CoverOpponent(2.0),
+			PlacementBias::TouchingOwn(2.0),
+			PlacementBias::EastWest(2.0),
+			PlacementBias::NorthSouth(0.8),
+			PlacementBias::Piece(Piece::L, 0.8),
+		]),
 		..MctsAgentConfig::default()
 	});
 
