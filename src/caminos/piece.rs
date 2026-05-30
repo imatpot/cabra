@@ -64,15 +64,15 @@ impl Piece {
 			],
 
 			Piece::T => &[
-				// Top/Bottom, North/South, and East/West are redundant
+				// Top/Bottom, partially North/South, and East/West are redundant
 				Rotation::T0,
 				Rotation::T90,
 				Rotation::T180,
 				Rotation::T270,
 				Rotation::N0,
 				Rotation::N90,
-				Rotation::N180,
-				Rotation::N270,
+				Rotation::S0,
+				Rotation::S90,
 				Rotation::E0,
 				Rotation::E90,
 				Rotation::E180,
