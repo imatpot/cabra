@@ -32,7 +32,27 @@ mod caminos;
 mod mcts;
 mod ui;
 
+fn count_reachable(state: &GameState, depth: usize, max_depth: usize, counts: &mut [usize]) {
+    counts[depth] += 1;
+    if depth == max_depth || state.result.is_some() {
+        return;
+    }
+    for placement in LEGAL_PLACEMENTS.of_all_without_overlap_without_floating(state.occupancy()) {
+        let mut next = state.clone();
+        next.apply_placement(placement);
+        count_reachable(&next, depth + 1, max_depth, counts);
+    }
+}
+
 fn main() {
+    let mut counts = [0usize; 5];
+    count_reachable(&GameState::EMPTY, 0, 4, &mut counts);
+    for (depth, count) in counts.iter().enumerate() {
+        println!("Layer {}: {} states", depth, count);
+    }
+
+    return;
+
 	let arg = std::env::args().nth(1);
 
 	match arg {
