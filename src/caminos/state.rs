@@ -263,6 +263,16 @@ impl std::fmt::Display for Player {
 	}
 }
 
+impl std::fmt::Display for GameResult {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			GameResult::StrongWin(player) => write!(f, "Player {} wins with bridge", player),
+			GameResult::WeakWin(player) => write!(f, "Player {} wins with tiebreaker", player),
+			GameResult::Draw => write!(f, "Draw"),
+		}
+	}
+}
+
 impl From<&[&'static Placement]> for GameState {
 	fn from(placements: &[&'static Placement]) -> Self {
 		let mut state = GameState::EMPTY;

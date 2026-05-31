@@ -11,11 +11,10 @@ use std::{
 	time::Duration,
 };
 
-use crate::ui::tui::display::PlacementPreview;
 use crate::{
 	caminos::piece::Piece,
 	mcts::policy::{
-		computation::{Iterative, Temporal},
+		computation::Iterative,
 		rollout::{PlacementBias, RolloutPolicy},
 		selection::BayesianUct,
 	},
@@ -27,35 +26,18 @@ use crate::{
 	},
 	mcts::agent::{MctsAgent, MctsAgentConfig},
 };
+use crate::{mcts::graph::Graph, ui::tui::display::PlacementPreview};
 
 mod caminos;
 mod mcts;
 mod ui;
 
-fn count_reachable(state: &GameState, depth: usize, max_depth: usize, counts: &mut [usize]) {
-    counts[depth] += 1;
-    if depth == max_depth || state.result.is_some() {
-        return;
-    }
-    for placement in LEGAL_PLACEMENTS.of_all_without_overlap_without_floating(state.occupancy()) {
-        let mut next = state.clone();
-        next.apply_placement(placement);
-        count_reachable(&next, depth + 1, max_depth, counts);
-    }
-}
-
 fn main() {
-    let mut counts = [0usize; 5];
-    count_reachable(&GameState::EMPTY, 0, 4, &mut counts);
-    for (depth, count) in counts.iter().enumerate() {
-        println!("Layer {}: {} states", depth, count);
-    }
-
-    return;
-
 	let arg = std::env::args().nth(1);
 
-	match arg {
+	match arg.as_deref() {
+		Some("count") => count(),
+		Some("avg") => avg_moves(),
 		_ => human_vs_agent(),
 	};
 }
@@ -194,4 +176,107 @@ fn agent_turn(state: &mut GameState, agent: &mut MctsAgent) {
 	state.apply_placement(placement);
 	println!("Agent plays: {}", placement.notation);
 	println!("{}", PlacementPreview(&state, Some(placement)));
+}
+
+fn count() {
+	let mut counts = [0usize; 5];
+	count_reachable(&GameState::EMPTY, 0, 4, &mut counts);
+	for (depth, count) in counts.iter().enumerate() {
+		println!("Layer {}: {} states", depth, count);
+	}
+}
+
+fn count_reachable(state: &GameState, depth: usize, max_depth: usize, counts: &mut [usize]) {
+	counts[depth] += 1;
+	if depth == max_depth || state.result.is_some() {
+		return;
+	}
+	for placement in LEGAL_PLACEMENTS.of_all_without_overlap_without_floating(state.occupancy()) {
+		let mut next = state.clone();
+		next.apply_placement(placement);
+		count_reachable(&next, depth + 1, max_depth, counts);
+	}
+}
+
+fn avg_moves() {
+	let mut a = MctsAgent::new(MctsAgentConfig {
+		computational_limit: Box::new(Iterative { iterations: 1 }),
+		..MctsAgentConfig::default()
+	});
+
+	let mut b = MctsAgent::new(MctsAgentConfig {
+		computational_limit: Box::new(Iterative { iterations: 1 }),
+		..MctsAgentConfig::default()
+	});
+
+	let mut game = GameState::EMPTY;
+	let mut legal_move_total = 0usize;
+	let mut move_total = 0usize;
+	let mut num_games = 0usize;
+
+	let mut legal_moves_on_turn = [0usize; 28];
+	let mut legal_moves_on_turn_min = [0usize; 28];
+	let mut legal_moves_on_turn_max = [0usize; 28];
+	let mut num_occurences_turn = [0usize; 28];
+
+	loop {
+		let mut turn = 0usize;
+
+		while game.result.is_none() {
+			let legal_move_count = game.next_legal_placements().count();
+			legal_move_total += legal_move_count;
+
+			num_occurences_turn[turn] += 1;
+			legal_moves_on_turn[turn] += legal_move_count;
+
+			if legal_move_count < legal_moves_on_turn_min[turn]
+				|| legal_moves_on_turn_min[turn] == 0
+			{
+				legal_moves_on_turn_min[turn] = legal_move_count;
+			}
+
+			if legal_move_count > legal_moves_on_turn_max[turn] {
+				legal_moves_on_turn_max[turn] = legal_move_count;
+			}
+
+			let playing_agent = if game.next_player() == Player::A {
+				&mut a
+			} else {
+				&mut b
+			};
+
+			let placement = playing_agent
+				.search_best_placement(game.clone())
+				.placement
+				.unwrap();
+
+			game.apply_placement(placement);
+			move_total += 1;
+			turn += 1;
+		}
+
+		num_games += 1;
+
+		println!(
+			"Stats after Game {} ({})\n  Total moves: {}\n  Avg. amount of legal moves per turn: {}\n  Avg. number of moves per turn: {:?}\n  Min number of moves per turn: {:?}\n  Max number of moves per turn: {:?}",
+			num_games,
+			game.result.unwrap(),
+			move_total,
+			legal_move_total as f64 / move_total as f64,
+			legal_moves_on_turn
+				.iter()
+				.zip(num_occurences_turn.iter())
+				.map(|(lm, n)| if *n > 0 { *lm as f64 / *n as f64 } else { 0.0 })
+				.collect::<Vec<_>>(),
+			legal_moves_on_turn_min,
+			legal_moves_on_turn_max,
+		);
+
+		// Reset agents
+		a.graph = Graph::new();
+		b.graph = Graph::new();
+
+		// Reset game
+		game = GameState::EMPTY;
+	}
 }
